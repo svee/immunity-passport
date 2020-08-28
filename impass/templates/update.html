@@ -1,0 +1,11 @@
+{% from "_formhelpers.html" import render_field %}
+<form method=post>
+  {{ form.hidden_tag() }}
+  <dl>
+    {{ render_field(form.lab) }}
+    {{ render_field(form.country) }}
+    {{ render_field(form.test_date) }}
+    {{ render_field(form.test_result) }}
+  </dl>
+  <p><input type=submit value=Update>
+</form>

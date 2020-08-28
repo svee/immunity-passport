@@ -1,0 +1,10 @@
+{% from "_formhelpers.html" import render_field %}
+<form method=post>
+  {{ form.hidden_tag() }}
+  <dl>
+    {{ render_field(form.username) }}
+    {{ render_field(form.dob) }}
+    {{ render_field(form.picture) }}
+  </dl>
+  <p><input type=submit value=Save>
+</form>
