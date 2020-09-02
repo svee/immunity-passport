@@ -1,11 +1,14 @@
 {% from "_formhelpers.html" import render_field %}
-<form method=post>
+<form method=post enctype="multipart/form-data">
   {{ form.hidden_tag() }}
   <dl>
-    {{ render_field(form.lab) }}
-    {{ render_field(form.country) }}
-    {{ render_field(form.test_date) }}
-    {{ render_field(form.test_result) }}
+    {{ render_field(form.lab_name) }}
+    {{ render_field(form.lab_city) }}
+    {{ render_field(form.lab_country) }}
+    {{ render_field(form.lab_date) }}
+    {{ render_field(form.lab_testtype) }}
+    <br><br>
+    {{ render_field(form.lab_report) }}
   </dl>
   <p><input type=submit value=Update>
 </form>
