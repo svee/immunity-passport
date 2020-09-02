@@ -226,24 +226,17 @@ def __verify():
             return 'SUCCESS: User has a VALID immunity passport!!'
     return 'Authentication FAILED'
 
-@app.route('/test', methods=['GET', 'POST'])
+@app.route('/printpassport', methods=['GET', 'POST'])
 @login_required
-def test():
-    form = forms.TestForm()
-    return redirect(url_for('dashboard')) #dummy right now. used for testing only.
+def printpassport():
+    if request.method == 'GET':
+        if (current_user.name == None or current_user.picture == None or len(current_user.reports) == 0):
+            return 'User Get New option and provide user/test data'
+        else:
+            tempFileObj = generate_idcard(current_user)
+            response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
+            return response
 
-    if request.method == 'POST' and form.validate():
-        current_user.name = form.username.data
-
-        f = form.picture.data
-        filename = secure_filename(form.picture.data.filename)
-
-        current_user.picture.put(f) 
-
-        current_user.save()
-        flash('Profile is updated Successfully')
-        return redirect(url_for('dashboard'))
-    return render_template('test.html', title = 'Edit Profile Data', form=form)
 
 
 import io
@@ -299,7 +292,7 @@ import qrcode
 
 
 
-def generate_auth_qrcode(current_user):
+def ggenerate_auth_qrcode(current_user):
     # String which represents the QR code 
     authurl = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(current_user.email)) #Need to encrypt
     # Generate QR code 
@@ -307,6 +300,18 @@ def generate_auth_qrcode(current_user):
     return img 
 
 
+def generate_auth_qrcode(current_user):
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=5,
+        border=2,
+    )
+    authurl = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(current_user.email)) #Need to encrypt
+    qr.add_data(authurl)
+    qr.make(fit=True)
 
+    img = qr.make_image(fill_color="black", back_color="white")
+    return img
 
 

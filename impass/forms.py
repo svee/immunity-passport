@@ -17,9 +17,9 @@ from flask_wtf.file import FileField, FileRequired, FileAllowed
 
 
 class SignupForm(FlaskForm):
-    email = StringField('Email', validators=[InputRequired(), Email(message='Invalid email'), Length(min=6, max=30)])
+    email = StringField('Email address', validators=[InputRequired(), Email(message='Invalid email'), Length(min=6, max=30)])
     password = PasswordField('New Password', [
-        validators.InputRequired(), validators.Length(min=8, max=20, message="Password length minimum 8 maximum 20"),
+        validators.InputRequired(), validators.Length(min=8, max=20, message="Password length minimum 8 maximum 30"),
         validators.EqualTo('confirm', message='Passwords must match')
     ])
     confirm = PasswordField('Repeat Password') #Can be removed later if we have show/hide feature
@@ -28,8 +28,8 @@ class ActivateForm(FlaskForm):
     email = StringField('Email', [validators.Length(min=6, max=35)])
 
 class LoginForm(FlaskForm):
-	email = StringField('Email', validators=[InputRequired(), Email(message='Invalid email'), Length(min=6, max=30)])
-	password = PasswordField('Password', validators=[InputRequired(), Length(min=8, max=20, message="Invalid Credentials")])
+	email = StringField('', render_kw={"placeholder": "Email address"}, validators=[InputRequired(), Email(message='Invalid email'), Length(min=6, max=30)])
+	password = PasswordField('', render_kw={"placeholder": "Password"}, validators=[InputRequired(), Length(min=8, max=30, message="Invalid Credentials")])
    
 #Once the registration is done, user is redirected to give details
 #to obtain QR Code that is 
@@ -38,7 +38,7 @@ class GetPassportForm(FlaskForm):
 	username = StringField('Full Name', validators=[InputRequired(), Length(min=4, max=25)])
 
 
-	picture = FileField('Your Passport Size Photo',
+	picture = FileField('Passport Photo',
 		validators=[FileRequired(),
 		FileAllowed(['jpg', 'png'], 'Images only!')])
 
@@ -47,7 +47,7 @@ class GetPassportForm(FlaskForm):
 	lab_country = StringField('Country', [validators.Length(min=4, max=25)])
 	lab_date = DateField('Date of Covid test', [validators.InputRequired()])
 	lab_testtype = BooleanField("Slect if Antibody test",[validators.InputRequired()])
-	lab_report = FileField('Covid test report (PDF)') #Have to make sure we validate.
+	lab_report = FileField('Covid test/vaccination report (PDF)') #Have to make sure we validate.
 
 	
 
