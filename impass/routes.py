@@ -5,8 +5,8 @@ from flask import render_template,redirect, url_for, request, flash,  send_file
 # .....
 
 
-from impass import app  #From this package. app is created in __init__
-from impass import forms #Notice forms.SignupForm, etc...  way to access object in other file. 
+from im_pass import app  #From this package. app is created in __init__
+from im_pass import forms #Notice forms.SignupForm, etc...  way to access object in other file. 
 
 
 
@@ -22,10 +22,12 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 import os.path
 
 
-from impass import settings 
+from im_pass import settings 
 from flask import jsonify
 
-from impass import enc_msg
+from im_pass import enc_msg
+
+import base64
 
 app.config['MONGODB_SETTINGS'] = {
     'db': 'db_impass',
@@ -118,14 +120,19 @@ def login():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html', name=current_user.email)
+   if (current_user.name == None or current_user.picture == None or len(current_user.reports) == 0):
+      return render_template('dashboard.html', name=current_user.email, imready=False)
+   else:
+      return render_template('dashboard.html', name=current_user.email, imready=True)
 
 
 @app.route('/getpassport', methods=['GET', 'POST'])
 @login_required
 def getpassport():
+    if request.method == 'POST' and request.form['submit_button'] == 'Home':
+        return redirect(url_for('dashboard'))
     form = forms.GetPassportForm()
-    if request.method == 'POST' and form.validate():
+    if request.method == 'POST' and form.validate() and  request.form['submit_button'] == 'Submit':
         rep = Report(lab_name=form.lab_name.data, lab_city=form.lab_city.data, 
             lab_country=form.lab_country.data,lab_date=form.lab_date.data, lab_antibody_test=form.lab_testtype.data)
         f = form.lab_report.data
@@ -149,16 +156,16 @@ def getpassport():
         response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
         return response
 
-        #flash('Imunity Passport will download now')
-        #return redirect(url_for('dashboard'))
-    elif (current_user.name):  #User information already present; just ask for test/vaccination details 
-         return redirect(url_for('update'))
+    elif (current_user.name != None):  #User information already present; just ask for test/vaccination details 
+        return redirect(url_for('update'))
     else:
         return render_template('getpassport.html', title = 'Immunity Passport Request', form=form)
 
 @app.route('/update', methods=['GET', 'POST'])
 @login_required
 def update():
+    if request.method == 'POST' and request.form['submit_button'] == 'Home':
+        return redirect(url_for('dashboard'))
     form = forms.UpdateCovidTestForm()
     if request.method == 'POST' and form.validate():
         rep = Report(lab_name=form.lab_name.data, lab_city=form.lab_city.data, 
@@ -181,10 +188,19 @@ def update():
     else:
         return render_template('update.html', title = 'Immunity Passport Request', form=form)
 
-@app.route('/editprofile', methods=['GET', 'POST'])
+
+def profilepic():
+    img = ""
+    fs =  current_user.picture.get()
+    if (fs != None):
+        img = base64.b64encode(fs.read())
+        img = img.decode("utf8")
+    return img
+
+@app.route('/addprofile', methods=['GET', 'POST'])
 @login_required
-def editprofile():
-    form = forms.EditProfileForm()
+def addprofile():
+    form = forms.AddProfileForm()
     if request.method == 'POST' and form.validate():
         current_user.name = form.username.data
 
@@ -197,13 +213,53 @@ def editprofile():
 
         current_user.save()
 
-        tempFileObj = generate_idcard(current_user)
-        response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
-        return response
+        flash('Profile is updated Successfully')
+        return redirect(url_for('dashboard'))
 
-        #flash('Profile is updated Successfully')
-        #return redirect(url_for('dashboard'))
-    return render_template('editprofile.html', title = 'Edit Profile Data', form=form)
+    if request.method == 'GET':
+        if (current_user.name == None):  #First time update. So we make fields mandatory.
+            return render_template('addprofile.html', title = 'Edit Profile Data', 
+                               email=current_user.email, form=form)
+        else:
+         return redirect(url_for('updateprofile'))
+
+@app.route('/updateprofile', methods=['GET', 'POST'])
+@login_required
+def updateprofile():
+
+    if request.method == 'POST' and request.form['submit_button'] == 'Home':
+        return redirect(url_for('dashboard'))
+
+    form = forms.UpdateProfileForm()
+    if request.method == 'POST' and form.validate():
+        if(form.username.data):
+            current_user.name = form.username.data
+
+        pf = form.picture.data
+        if (pf):
+            filename = secure_filename(pf.filename)
+            if(current_user.picture == None):  #First time updating
+                current_user.picture.put(pf) 
+            else:
+                current_user.picture.replace(pf) 
+
+        current_user.save()
+
+        flash('Profile is updated Successfully')
+        return redirect(url_for('dashboard'))
+
+
+    if (current_user.name == None):  #First time update. So we make fields mandatory.
+        return render_template('addprofile.html', title = 'Edit Profile Data', 
+                               email=current_user.email, form=form)
+    else:
+        img = None
+        fs =  current_user.picture.get()
+        if (fs != None):
+            img = base64.b64encode(fs.read())
+            img = img.decode("utf8")
+        return render_template('updateprofile.html', title = 'Edit Profile Data', 
+                               profile_pic=img, email=current_user.email, name=current_user.name,form=form)
 
 @app.route("/logout")
 @login_required

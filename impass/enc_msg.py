@@ -1,5 +1,5 @@
 from cryptography.fernet import Fernet
-from impass import app
+from im_pass import app
 
 # Encryption key is stored away in directory that is not checked-in
 # Key itself is generated once by  key = Fernet.generate_key()

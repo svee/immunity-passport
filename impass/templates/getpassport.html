@@ -26,7 +26,11 @@
     <br><br>
     {{ render_field(form.lab_report) }}
   </dl>
-  <p><input class="btn btn-lg btn-primary btn-block"  type=submit value="Submit">
+  <p><input class="btn btn-lg btn-primary btn-block"  name=submit_button type=submit value="Submit">
+</form>
+<form class="form-signin"  method=post enctype="multipart/form-data">
+  {{ form.hidden_tag() }}
+  <p><input class="btn btn-lg btn-primary btn-block"  name=submit_button type=submit value="Home">
 </form>
 </div>
 {% endblock %}

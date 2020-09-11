@@ -17,8 +17,8 @@ app = Flask(__name__, instance_relative_config=True)
 app.config.from_pyfile('config.py', silent=True)
 
 
-from impass import forms
-from impass import routes
+from im_pass import forms
+from im_pass import routes
 
 
 
