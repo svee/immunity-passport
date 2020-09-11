@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block head %}
+    {{ super() }}
+ 
+    <!-- Custom styles for this template -->
+    <link href="static/css/signin.css" rel="stylesheet">
+{% endblock %}
+{% block content %}
+ <div id="content" class="form-signin">
+{% from "_formhelpers.html" import render_field %}
+<form class="form-signin"  method=post>
+  <img class="mb-4" src="static/logo_immunity_passport.png" alt="" width="72" height="72">
+  <h1 class="h3 mb-3 font-weight-normal">Please sign in</h1>
+  {{ form.hidden_tag() }}
+  <dl>
+    {{ render_field(form.email) }}
+    {{ render_field(form.password) }}
+    {{ render_field(form.confirm) }}
+  </dl>
+  <p><input class="btn btn-lg btn-primary btn-block"  type=submit value="Sign up">
+</form>
+</div>
+{% endblock %}
+
+

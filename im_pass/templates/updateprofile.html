@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block head %}
+    {{ super() }}
+ 
+    <!-- Custom styles for this template -->
+    <link href="static/css/signin.css" rel="stylesheet">
+{% endblock %}
+{% block content %}
+ <div id="content" class="form-signin">
+{% from "_formhelpers.html" import render_field %}
+<form class="form-signin"  method=post enctype="multipart/form-data">
+  <img class="mb-4" src="static/logo_immunity_passport.png" alt="" width="72" height="72">
+  <h1 class="h3 mb-3 font-weight-normal">Change Profile Details</h1>
+  <h4 class="h4 mb-4 font-weight-normal">{{email}}</h4>
+  <h4 class="h4 mb-4 font-weight-normal">{{name}}</h4>
+   {% if profile_pic %}
+     <img src="data:image/jpeg;base64,{{profile_pic}}" alt="Profile Pic" width="160" >
+
+   {% endif %}
+  {{ form.hidden_tag() }}
+  <dl>
+    {{ render_field(form.username) }}
+    {{ render_field(form.picture) }}
+  </dl>
+  <p><input class="btn btn-lg btn-primary btn-block"  name=submit_button type=submit value="Save Changes">
+</form>
+<form class="form-signin"  method=post enctype="multipart/form-data">
+  {{ form.hidden_tag() }}
+  <p><input class="btn btn-lg btn-primary btn-block"  name=submit_button type=submit value="Home">
+</form>
+</div>
+{% endblock %}
+
+
