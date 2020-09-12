@@ -31,7 +31,19 @@
 
 </head>
 <body class="text-center">
-   {% block content %}{% endblock %}
+{% block basecontent %}
+<div class="container">
+    {% for message in get_flashed_messages() %}
+    <div class="alert alert-warning">
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+        {{ message }}
+    </div>
+    {% endfor %}
+
+    {% block content %}{% endblock %}
+</div>
+{% endblock %}
+
 
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
       <script>window.jQuery || document.write('<script src="static/jquery.slim.min.js"><\/script>')</script><script src="static/js/bootstrap.bundle.min.js"></script>

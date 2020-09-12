@@ -3,3 +3,7 @@ old
 __pycache__
 static
 impass/templates/test
+dist
+*.egg-info
+.setup*
+tmp

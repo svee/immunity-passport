@@ -66,6 +66,8 @@ class UpdateCovidTestForm(FlaskForm):
 class __VerifyForm(FlaskForm):
 	key = StringField('key', [validators.Length(min=4, max=200)])
 
+class __ActivateForm(FlaskForm):
+	token = StringField('key', [validators.Length(min=4, max=500)])
 
 class AddProfileForm(FlaskForm):
 	username = StringField('Full Name',  [validators.Length(min=4, max=25)])

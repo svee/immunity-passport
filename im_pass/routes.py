@@ -51,9 +51,10 @@ class Report(db.EmbeddedDocument):
 	lab_report = db.FileField()
 
 class User(UserMixin, db.Document):
-    meta = {'collection': 'PassHolders'}
-    email = db.StringField(max_length=500)
+    meta = {'collection': 'PassHolders'}   #Mongodb collection name is defined here
+    email = db.StringField(max_length=30)
     password = db.StringField()
+    confirmed = db.BooleanField(default=False)   #Used for email conformation
     name = db.StringField(max_length=30)
     picture=db.ImageField()
     reports = ListField(EmbeddedDocumentField(Report))
@@ -71,35 +72,36 @@ def home():
     return render_template('home.html')
 
 
+from im_pass import email
+
+def generate_email_confirmation(email_id):
+    #Form email activation link and send
+    token = enc_msg.gen_activation_key(email_id)
+    confirm_url = url_for('__activate', token=token, _external=True)
+    html = render_template('email_activation.html', confirm_url=confirm_url)
+    subject = "Please confirm your email"
+    # email.send_email(email_id, subject, html)  #email integration is not done.
+    print(html)
+    flash('Check your email for activation link')
+
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if current_user.is_authenticated == True:
         flash('Logout before registering another user')
         return redirect(url_for('dashboard'))
-
     form = forms.SignupForm(request.form)
     if request.method == 'POST' and form.validate():
 
-        existing_user = User.objects(email=form.email.data).first()
+        existing_user = User.objects(email=form.email.data.lower()).first()
         if existing_user is None:
-            print ("register ok")
             hashpass = generate_password_hash(form.password.data, method='sha256')
-            newuser = User(email=form.email.data,password=hashpass).save()
-            flash('Check your email for activation link')
-            return redirect(url_for('login'))
-        flash('You have already registered')
+            newuser = User(email=form.email.data.lower(),password=hashpass).save()
+            generate_email_confirmation(form.email.data.lower())
+        else:
+            flash('You have already registered')
         return redirect(url_for('login'))
     return render_template('signup.html', title = 'Sing up with your email ID', form=form)
 
-# This function is yet to be implemented.
-@app.route('/activate', methods=['GET'])
-def activate():
-    form = forms.ActivateForm(request.form)
-    if request.method == 'GET' and form.validate():
-        flash('Your Account is now active; Proceed to log-in')
-        return redirect(url_for('login'))
-    flash('Activation Link has expired or invalid activation code.') #Validation is to be done here.
-    return render_template('signup.html', title = 'Sing up with your email ID', form=form)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -108,11 +110,15 @@ def login():
     form = forms.LoginForm()
     if request.method == 'POST' and form.validate():
 
-        user_rec = User.objects(email=form.email.data).first()
+        user_rec = User.objects(email=form.email.data.lower()).first()
         if user_rec:
             if check_password_hash(user_rec['password'], form.password.data):
-                login_user(user_rec)
-                return redirect(url_for('dashboard'))
+                if (user_rec.confirmed == False):
+                    flash("Activate your account by confirming email") #Need way to provide resent confirm
+                    return redirect(url_for('home'))
+                else:
+                    login_user(user_rec)
+                    return redirect(url_for('dashboard'))
         flash('Invalid Credentials; Try again')
         return redirect(url_for('login'))
     return render_template('login.html', title='Sign In', form=form)
@@ -153,6 +159,7 @@ def getpassport():
         current_user.save()
 
         tempFileObj = generate_idcard(current_user)
+        flash("Select Home to go to dashboard after download")
         response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
         return response
 
@@ -179,12 +186,11 @@ def update():
         current_user.reports.append(rep)  #Should there be limit on number of submissions ?
         current_user.save()
 
+        flash("Select Home to go to dashboard after download")
         tempFileObj = generate_idcard(current_user)
         response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
         return response
 
-        #flash('Updated Imunity Passport will download now')
-        #return redirect(url_for('dashboard'))
     else:
         return render_template('update.html', title = 'Immunity Passport Request', form=form)
 
@@ -269,7 +275,6 @@ def logout():
 
 @app.route("/__verify")
 def __verify():
-    print("Here in Verify")
     form = forms.__VerifyForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration need
     if request.method == 'GET' and form.validate():
         key = form.key.data
@@ -293,6 +298,27 @@ def printpassport():
             response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
             return response
 
+
+
+
+
+@app.route('/__activate')
+def __activate():
+    form = forms.__ActivateForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration need
+    if request.method == 'GET' and form.validate():
+        token = form.token.data
+    try:
+        email = enc_msg.confirm_activation_key(token)
+    except:
+        flash('The confirmation link is invalid or has expired.', 'danger')
+    user_rec = User.objects(email=email).first()
+    if user_rec.confirmed:
+        flash('Account confirmed. Please login.', 'success')
+    else:
+        user_rec.confirmed = True
+        user_rec.save()
+        flash('You have confirmed your account. Thanks!', 'success')
+    return redirect(url_for('login'))
 
 
 import io

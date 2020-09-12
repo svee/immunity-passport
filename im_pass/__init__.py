@@ -1,5 +1,5 @@
 from flask import Flask
-
+from flask_mail import Mail
 
 #Note that create_app is called by default
 # To run this app, use these commands
@@ -16,12 +16,8 @@ app = Flask(__name__, instance_relative_config=True)
 
 app.config.from_pyfile('config.py', silent=True)
 
+mail = Mail(app)
 
 from im_pass import forms
 from im_pass import routes
-
-
-
-
-#return app
 
