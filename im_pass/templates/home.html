@@ -1,10 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Login{% endblock %}
+{% block title %}Home{% endblock %}
 {% block head %}
     {{ super() }}
  
     <!-- Custom styles for this template -->
     <link href="navbar-top-fixed.css" rel="stylesheet">
+    <link href="static/css/signin.css" rel="stylesheet">
+
 {% endblock %}
 {% block content %}
 
@@ -26,5 +28,14 @@
       </li>
     </ul>
   </div>
-</nav>
+   </nav>
+   <div id="content" class="form-signin">
+<form class="form-signin"  method=get >
+  <img class="mb-4" src="static/logo_immunity_passport.png" alt="" width="72" height="72">
+  <dl>
+          <p><a href="/login"><input class="btn btn-lg btn-primary btn-block" type=button value="Login">
+          <p><a href="/signup"><input class="btn btn-lg btn-primary btn-block" type=button value="Signup">
+</form>
+ </div>
+
 {% endblock %}

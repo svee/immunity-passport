@@ -1,10 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Login{% endblock %}
+{% block title %}Dashboard{% endblock %}
 {% block head %}
     {{ super() }}
  
     <!-- Custom styles for this template -->
     <link href="navbar-top-fixed.css" rel="stylesheet">
+        <!-- Custom styles for this template -->
+    <link href="static/css/signin.css" rel="stylesheet">
+
 {% endblock %}
 {% block content %}
 
@@ -19,9 +22,9 @@
         <a class="nav-link" href="/">Home <span class="sr-only">(current)</span></a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" href="/getpassport">New</a>
+        <a class="nav-link" href="/getpassport">New Passport</a>
       </li>
-      {% if imready %}
+      {% if pass_ready %}
          <li class="nav-item">
 		 <a class="nav-link" href="/printpassport">Print</a>
       {% else %}
@@ -36,6 +39,18 @@
       </li>
     </ul>
   </div>
-</nav>
+   </nav>
+ <div id="content" class="form-signin">
+<form class="form-signin"  method=get >
+  <img class="mb-4" src="static/logo_immunity_passport.png" alt="" width="72" height="72">
+  <dl>
+	  <p><a href="/getpassport"><input class="btn btn-lg btn-primary btn-block" type=button value="New Passport">
+          {% if pass_ready %}
+	      <p><a href="/printpassport"><input class="btn btn-lg btn-primary btn-block" type=button value="Print">
+	  {% endif %}
+	  <p><a href="/addprofile"><input class="btn btn-lg btn-primary btn-block" type=button value="Profile">
+	  <p><a href="/logout"><input class="btn btn-lg btn-primary btn-block" type=button value="Logout">
+</form>
+ </div>
 {% endblock %}
 

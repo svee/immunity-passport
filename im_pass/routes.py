@@ -43,12 +43,12 @@ login_manager.login_view = "login"
 
 
 class Report(db.EmbeddedDocument):
-	lab_name = db.StringField()
-	lab_city = db.StringField()
-	lab_country = db.StringField()
-	lab_date = db.DateField()
-	lab_antibody_test = db.BooleanField()
-	lab_report = db.FileField()
+    lab_name = db.StringField()
+    lab_city = db.StringField()
+    lab_country = db.StringField()
+    lab_date = db.DateField()
+    lab_report_type = db.StringField()
+    lab_report = db.FileField()
 
 class User(UserMixin, db.Document):
     meta = {'collection': 'PassHolders'}   #Mongodb collection name is defined here
@@ -56,17 +56,23 @@ class User(UserMixin, db.Document):
     password = db.StringField()
     confirmed = db.BooleanField(default=False)   #Used for email conformation
     name = db.StringField(max_length=30)
-    picture=db.ImageField()
+    picture=db.ImageField(size=(160,160,True))
     reports = ListField(EmbeddedDocumentField(Report))
 
 
+@app.errorhandler(413)
+def error413(e):
+    flash("Size of Picture/Report cannot exceed 1MB")
+    return render_template('dashboard.html')
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.objects(pk=user_id).first()
+    try:
+        return User.objects(pk=user_id).first()
+    except Exception as e:
+        flash ("Critical Error connecton to MongoDB Failed:") 
+        return None
 
-#If used is logged-in (active session); home page will have link/Buttons to Sign-out and Get Passport
-#If used is NOT logged-in (inactive session); home page will have link/Buttons to Sign-up and Sign-in
 @app.route('/')
 def home():
     return render_template('home.html')
@@ -80,9 +86,9 @@ def generate_email_confirmation(email_id):
     confirm_url = url_for('__activate', token=token, _external=True)
     html = render_template('email_activation.html', confirm_url=confirm_url)
     subject = "Please confirm your email"
+    # email activation is disabled for demo version now. to activate, uncomment generate_email.
     # email.send_email(email_id, subject, html)  #email integration is not done.
-    print(html)
-    flash('Check your email for activation link')
+    #flash('Check your email for activation link')
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -91,16 +97,25 @@ def signup():
         return redirect(url_for('dashboard'))
     form = forms.SignupForm(request.form)
     if request.method == 'POST' and form.validate():
+        try:
+            existing_user = User.objects(email=form.email.data.lower()).first()
+        except Exception as e:
+            flash(e)   #Likely that MongoDB connection has failed.
+            return render_template('home.html')
 
-        existing_user = User.objects(email=form.email.data.lower()).first()
         if existing_user is None:
             hashpass = generate_password_hash(form.password.data, method='sha256')
             newuser = User(email=form.email.data.lower(),password=hashpass).save()
             generate_email_confirmation(form.email.data.lower())
+
+            newuser.confirmed = True  # temporary till email activation is enabled.
+            newuser.save()
+            flash('Registered Successfully; Log in with email/password')
         else:
-            flash('You have already registered')
+            flash('You have already registered; Log in with email/password')
         return redirect(url_for('login'))
-    return render_template('signup.html', title = 'Sing up with your email ID', form=form)
+    else:
+        return render_template('signup.html', title = 'Sing up with your email ID', form=form)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -109,27 +124,33 @@ def login():
         return redirect(url_for('dashboard'))
     form = forms.LoginForm()
     if request.method == 'POST' and form.validate():
+        try:
+            user_rec = User.objects(email=form.email.data.lower()).first()
+        except Exception as e:
+            flash(e)   #Likely that MongoDB connection has failed.
+            return render_template('home.html')
 
-        user_rec = User.objects(email=form.email.data.lower()).first()
         if user_rec:
             if check_password_hash(user_rec['password'], form.password.data):
                 if (user_rec.confirmed == False):
-                    flash("Activate your account by confirming email") #Need way to provide resent confirm
+                    flash("Activate your account by confirming email") 
+                    generate_email_confirmation(form.email.data.lower()) #Need better way to provide resend confirm
                     return redirect(url_for('home'))
                 else:
                     login_user(user_rec)
                     return redirect(url_for('dashboard'))
         flash('Invalid Credentials; Try again')
         return redirect(url_for('login'))
-    return render_template('login.html', title='Sign In', form=form)
+    else:
+        return render_template('login.html', title='Sign In', form=form)
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
    if (current_user.name == None or current_user.picture == None or len(current_user.reports) == 0):
-      return render_template('dashboard.html', name=current_user.email, imready=False)
+      return render_template('dashboard.html', name=current_user.email, pass_ready=False)
    else:
-      return render_template('dashboard.html', name=current_user.email, imready=True)
+      return render_template('dashboard.html', name=current_user.email, pass_ready=True)
 
 
 @app.route('/getpassport', methods=['GET', 'POST'])
@@ -140,26 +161,28 @@ def getpassport():
     form = forms.GetPassportForm()
     if request.method == 'POST' and form.validate() and  request.form['submit_button'] == 'Submit':
         rep = Report(lab_name=form.lab_name.data, lab_city=form.lab_city.data, 
-            lab_country=form.lab_country.data,lab_date=form.lab_date.data, lab_antibody_test=form.lab_testtype.data)
+            lab_country=form.lab_country.data,lab_date=form.lab_date.data, lab_report_type=form.lab_report_type.data)
+
         f = form.lab_report.data
         filename = secure_filename(f.filename)
+        try:
+            rep.lab_report.put(f) 
+            current_user.reports.append(rep)  #Should there be limit on number of submissions ?
 
-        rep.lab_report.put(f) 
-        current_user.reports.append(rep)  #Should there be limit on number of submissions ?
+            current_user.name = form.username.data
+            pf = form.picture.data
+            filename = secure_filename(pf.filename) #May be I can make the file names to be legit or safer this way.
+            if(current_user.picture == None):  #First time updating
+                current_user.picture.put(pf) 
+            else:
+                current_user.picture.replace(pf) 
 
-
-        current_user.name = form.username.data
-        pf = form.picture.data
-        filename = secure_filename(pf.filename) #May be I can make the file names to be legit or safer this way.
-        if(current_user.picture == None):  #First time updating
-            current_user.picture.put(pf) 
-        else:
-            current_user.picture.replace(pf) 
-
-        current_user.save()
+            current_user.save()
+        except Exception as e:
+            flash(e.message)
+            return render_template('getpassport.html', title = 'Immunity Passport Request', form=form)
 
         tempFileObj = generate_idcard(current_user)
-        flash("Select Home to go to dashboard after download")
         response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
         return response
 
@@ -176,17 +199,20 @@ def update():
     form = forms.UpdateCovidTestForm()
     if request.method == 'POST' and form.validate():
         rep = Report(lab_name=form.lab_name.data, lab_city=form.lab_city.data, 
-            lab_country=form.lab_country.data,lab_date=form.lab_date.data, lab_antibody_test=form.lab_testtype.data)
+            lab_country=form.lab_country.data,lab_date=form.lab_date.data, lab_report_type=form.lab_report_type.data)
 
-        f = form.lab_report.data
-        filename = secure_filename(f.filename)
+        try:
+            f = form.lab_report.data
+            filename = secure_filename(f.filename)
+    
+            rep.lab_report.put(f) 
+    
+            current_user.reports.append(rep)  #Should there be limit on number of submissions ?
+            current_user.save()
+        except Exception as e:
+            flash(e.message)
+            return render_template('update.html', title = 'Immunity Passport Request', form=form)
 
-        rep.lab_report.put(f) 
-
-        current_user.reports.append(rep)  #Should there be limit on number of submissions ?
-        current_user.save()
-
-        flash("Select Home to go to dashboard after download")
         tempFileObj = generate_idcard(current_user)
         response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
         return response
@@ -212,22 +238,28 @@ def addprofile():
 
         pf = form.picture.data
         filename = secure_filename(pf.filename)
-        if(current_user.picture == None):  #First time updating
-            current_user.picture.put(pf) 
-        else:
-            current_user.picture.replace(pf) 
 
-        current_user.save()
+        try:
+            if(current_user.picture == None):  #First time updating
+                current_user.picture.put(pf) 
+            else:
+                current_user.picture.replace(pf) 
+    
+            current_user.save()
 
+        except Exception as e:
+            flash(e.message)
+            return render_template('addprofile.html', title = 'Edit Profile Data', 
+                           email=current_user.email, form=form)
+    
         flash('Profile is updated Successfully')
         return redirect(url_for('dashboard'))
 
-    if request.method == 'GET':
-        if (current_user.name == None):  #First time update. So we make fields mandatory.
-            return render_template('addprofile.html', title = 'Edit Profile Data', 
-                               email=current_user.email, form=form)
-        else:
-         return redirect(url_for('updateprofile'))
+    if (current_user.name == None):  #First time update. So we make fields mandatory.
+        return render_template('addprofile.html', title = 'Edit Profile Data', 
+                           email=current_user.email, form=form)
+    else:
+        return redirect(url_for('updateprofile'))
 
 @app.route('/updateprofile', methods=['GET', 'POST'])
 @login_required
@@ -242,14 +274,24 @@ def updateprofile():
             current_user.name = form.username.data
 
         pf = form.picture.data
-        if (pf):
-            filename = secure_filename(pf.filename)
-            if(current_user.picture == None):  #First time updating
-                current_user.picture.put(pf) 
-            else:
-                current_user.picture.replace(pf) 
-
-        current_user.save()
+        try:
+            if (pf):
+                filename = secure_filename(pf.filename)
+                if(current_user.picture == None):  #First time updating
+                    current_user.picture.put(pf) 
+                else:
+                    current_user.picture.replace(pf) 
+    
+            current_user.save()
+        except Exception as e:
+            flash(e.message)
+            img = None
+            fs =  current_user.picture.get()
+            if (fs != None):
+                img = base64.b64encode(fs.read())
+                img = img.decode("utf8")
+            return render_template('updateprofile.html', title = 'Edit Profile Data', 
+                               profile_pic=img, email=current_user.email, name=current_user.name,form=form)
 
         flash('Profile is updated Successfully')
         return redirect(url_for('dashboard'))
@@ -292,7 +334,8 @@ def __verify():
 def printpassport():
     if request.method == 'GET':
         if (current_user.name == None or current_user.picture == None or len(current_user.reports) == 0):
-            return 'User Get New option and provide user/test data'
+            flash ('Provide user/test data first using Get New option','success')
+            return redirect(url_for('dashboard'))
         else:
             tempFileObj = generate_idcard(current_user)
             response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
@@ -332,7 +375,6 @@ def generate_idcard(current_user):
     card = Image.open(os.path.join(settings.APP_STATIC, 'Immunity Passport.png'))
     cardx, cardy = card.size
 
-#   photo = Image.open('photo.jpg')
     im_stream = current_user.picture.get()
     photo = Image.open(im_stream)
 
@@ -342,12 +384,15 @@ def generate_idcard(current_user):
     photox, photoy = photo.size
 
     qrcode = generate_auth_qrcode(current_user)
-    #qrcode = Image.open(os.path.join(settings.APP_STATIC, 'qrcode.png'))
     qrx, qry = qrcode.size
 
+    stamp = Image.open(os.path.join(settings.APP_STATIC, 'IssuingAuthority.png'))
+    stamp.thumbnail(MAX_SIZE, Image.ANTIALIAS) #Maintains the aspect ratio. 
+    stampx, stampy = stamp.size
 
     card.paste(qrcode, ((cardx//2 - qrx//2), (cardy//2 - qry//2)-50))
     card.paste(photo, (cardx - photox - 30, cardy - photoy - 30))
+    card.paste(stamp, (cardx - stampx - 30, 30))
 
     d = ImageDraw.Draw(card)
     font = ImageFont.truetype("FreeMono.ttf",20)

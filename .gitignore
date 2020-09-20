@@ -7,3 +7,6 @@ dist
 *.egg-info
 .setup*
 tmp
+.coverage
+.=*
+im_pass/tests/assets
