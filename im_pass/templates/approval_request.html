@@ -1,6 +1,15 @@
 <h1>Welcome! Immunity Passport </h1>
 <br>
-<p><b>Review the attached report and click link below to approve. Simply ignore if not approved</b></p>
+<p><b>Review the attached report and click link below to APPROVE. Simply ignore if NOT APPROVED </b></p>
 <br>
-<p><a href="{{ confirm_url }}">Click here to Approve</a></p>
+<p> Latest test details available with the system </p>
+<ul>
+<li> Name of the person: {{name}}
+<li> Lab where test is done: {{lab_name}}
+<li> lab_city: {{lab_city}}
+<li> lab_country: {{lab_country}}
+<li> Date of test/vaccination: {{lab_date}}
+<li> lab_report_type: {{lab_report_type}}
+</ul>
+<p><a href="{{ confirm_url }}">Click to Approve</a></p>
 

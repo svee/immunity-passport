@@ -14,9 +14,13 @@ from wtforms import Form, BooleanField,DateField, StringField, SelectField, Pass
 from wtforms.validators import DataRequired,Email, Length, InputRequired, ValidationError
 from flask_wtf.file import FileField, FileRequired, FileAllowed
 
+# Covid Test is used to generate Covid Pass - that is someone is currently clear of Covid
+# Antibody Test is used to generate Immunity Pass for prescribed period 
+# Antibody Test is used to generate Immunity Pass for prescribed period as per vaccination recoddemdations
 REPORT_TYPE = [
-        ("Vaccination","Vaccination"),
+        ("Covid Test","Covid Test"),
         ("Antibody Test","Antibody Test"),
+        ("Vaccination","Vaccination"),
         ]
 
 
@@ -55,8 +59,9 @@ class GetPassportForm(FlaskForm):
     lab_name = StringField('Lab Name', [validators.Length(min=4, max=25)])
     lab_city = StringField('City', [validators.Length(min=4, max=25)])
     lab_country = StringField('Country', [validators.Length(min=4, max=25)])
-    lab_date = DateField('Date of Covid test', format="%Y/%m/%d",validators=[InputRequired()])
-    #lab_testtype = BooleanField("Slect if Antibody test",[validators.InputRequired()])
+    lab_date = DateField('Date of Covid test', 
+            render_kw={"placeholder": "yyyy-mm-dd"}, 
+            validators=[InputRequired()])
     lab_report_type = SelectField(choices=REPORT_TYPE,default="Antibody Test", validators=[InputRequired()])
     lab_report = FileField('Covid test/vaccination report (PDF)', validators=[FileRequired(),
         FileAllowed(['pdf'], 'PDF Format only!')])
@@ -64,11 +69,12 @@ class GetPassportForm(FlaskForm):
     
 
 class UpdateCovidTestForm(FlaskForm):
-    lab_name = StringField('Lab Name', [validators.Length(min=4, max=25)])
+    lab_name = StringField('Lab Name', [validators.Length(min=8, max=40)])
     lab_city = StringField('City', [validators.Length(min=4, max=25)])
     lab_country = StringField('Country', [validators.Length(min=4, max=25)])
-    lab_date = DateField('Date of Covid test', validators=[InputRequired()])
-    #lab_testtype = BooleanField("Slect if Antibody test",[validators.InputRequired()])
+    lab_date = DateField('Date of Covid test', 
+            render_kw={"placeholder": "yyyy-mm-dd"}, 
+            validators=[InputRequired()])
     lab_report_type = SelectField(choices=REPORT_TYPE,default="Antibody Test",validators=[InputRequired()])
     lab_report = FileField('Covid test report (PDF)', validators=[FileRequired(),
         FileAllowed(['pdf'], 'PDF Format only!')])

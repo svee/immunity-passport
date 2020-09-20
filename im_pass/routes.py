@@ -35,6 +35,13 @@ app.config['MONGODB_SETTINGS'] = {
     'port': 27017
 }
 
+# Configure how long report s valid for each of the tests (in days)
+app.config['REPORT_VALIDITY'] = {
+        "CovidTest":3,
+        "AntibodyTest":60,
+        "Vaccination":180
+        }
+
 db = MongoEngine(app)
 
 login_manager = LoginManager()
@@ -49,7 +56,7 @@ class Report(db.EmbeddedDocument):
     lab_date = db.DateField()
     lab_report_type = db.StringField()
     lab_report = db.FileField()
-    approved = db.BooleanField(default=False)   #Used for email conformation
+    approved = db.BooleanField(default=False)   #Used for email approval of the report
 
 class User(UserMixin, db.Document):
     meta = {'collection': 'PassHolders'}   #Mongodb collection name is defined here
@@ -87,17 +94,43 @@ def generate_email_confirmation(email_id):
     confirm_url = url_for('__activate', token=token, _external=True)
     html = render_template('email_activation.html', confirm_url=confirm_url)
     subject = "Please confirm your email"
-    # email activation is disabled for demo version now. to activate, uncomment generate_email.
     email.send_email(email_id, subject, html)  #email integration is not done.
     flash('Check your email for activation link')
 
-def generate_email_report_apprival(email_id, fattach):
+def generate_email_report_apprival(email_id, fattach, name, lab_name, lab_city, lab_country, lab_date, lab_report_type):
     token = enc_msg.gen_activation_key(email_id)
     confirm_url = url_for('__approve', token=token, _external=True)
-    html = render_template('approval_request.html', confirm_url=confirm_url)
+    html = render_template('approval_request.html', confirm_url=confirm_url,
+                            name=name, lab_name=lab_name, lab_city=lab_city, lab_country=lab_country, 
+                            lab_date=lab_date, lab_report_type=lab_report_type)
     subject = "Please review attached report and click on the link to approve"
-    email.send_email(app.config['APPROVER_EMAIL'], subject, html,fattach)  #email integration is not done.
+    email.send_email(app.config['APPROVER_EMAIL'], subject, html,fattach, "report.pdf","pdf")  #email integration is not done.
     flash('Report is sent for approval. Download once it is done')
+
+# Once the report is approved, this is called to send immunity pass through e-mail
+def generate_email_immunity_pass(email_id, fattach):
+    html = render_template('passportby_mail.html')
+    subject = "Your immunity pass is approved"
+    email.send_email(email_id, subject, html,fattach,"immunity_passport.png", "png")  #email integration is not done.
+
+from datetime import datetime, timedelta
+
+# Checks if the lab report in hand has expired
+def check_if_expired(rep_type, rep_date):
+    today = datetime.today().date()
+    expired=False
+    if rep_type == "Covid Test":
+        if (rep_date + timedelta(days=app.config['REPORT_VALIDITY']['CovidTest']) < today):
+                expired = True;
+    elif rep_type == "Antibody Test":
+        if (rep_date + timedelta(days=app.config['REPORT_VALIDITY']['AntibodyTest']) < today):
+                expired = True;
+    elif rep_type == "Vaccination":
+        if (rep_date + timedelta(days=app.config['REPORT_VALIDITY']['Vaccination']) < today):
+                expired = True;
+    else:
+        expired = True # Error we don't understand this type of test.
+    return expired
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -196,7 +229,9 @@ def getpassport():
 
         if (app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
             tempFileObj = generate_temp_report(current_user)
-            generate_email_report_apprival(current_user.email, tempFileObj)
+            rep = current_user.reports[-1]
+            generate_email_report_apprival(current_user.email, tempFileObj, current_user.name, 
+                    rep.lab_name, rep.lab_city, rep.lab_country, rep.lab_date, rep.lab_report_type)
             return render_template('dashboard.html')
         else:
             tempFileObj = generate_idcard(current_user)
@@ -234,7 +269,9 @@ def update():
 
         if (app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
             tempFileObj = generate_temp_report(current_user)
-            generate_email_report_apprival(current_user.email, tempFileObj)
+            rep = current_user.reports[-1]
+            generate_email_report_apprival(current_user.email, tempFileObj, current_user.name, 
+                    rep.lab_name, rep.lab_city, rep.lab_country, rep.lab_date, rep.lab_report_type)
             return render_template('dashboard.html')
         else:
             tempFileObj = generate_idcard(current_user)
@@ -368,6 +405,8 @@ def printpassport():
         flash ('Provide user/test data first using Get New option','success')
     elif (current_user.reports[-1].approved == False):
         flash ('Lab report is waiting for approval. Try again later','success')
+    elif (check_if_expired(current_user.reports[-1].lab_report_type,current_user.reports[-1].lab_date) == True):
+        flash ('Your Report has expired; submit new lab report','success')
     else:
         tempFileObj = generate_idcard(current_user)
         response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
@@ -410,6 +449,13 @@ def __approve():
         user_rec.reports[-1].approved = True
         user_rec.save()
         message =  'You have approved the Report. Thanks you!'
+
+
+    if (app.config['SEND_PASS_BY_MAIL'] == True and 
+            check_if_expired(user_rec.reports[-1].lab_report_type,user_rec.reports[-1].lab_date) == False):
+            tempFileObj = generate_idcard(user_rec)
+            generate_email_immunity_pass(user_rec.email, tempFileObj)
+
     return render_template('approval_response.html',message=message) 
 
 import io
@@ -425,6 +471,16 @@ def generate_temp_report(current_user):
     return tempFileObj
 
 def generate_idcard(current_user):
+    rep_type = current_user.reports[-1].lab_report_type
+    if rep_type == "Covid Test":
+        title = "Covid Tested"
+    elif rep_type == "Antibody Test":
+        title = "Tested for Antibody"
+    elif rep_type == "Vaccination":
+        title = "Vaccination Done"
+    else:
+        title="Unknown"  #should not come here
+
 
     card = Image.open(os.path.join(settings.APP_STATIC, 'Immunity Passport.png'))
     cardx, cardy = card.size
@@ -456,10 +512,8 @@ def generate_idcard(current_user):
     datestr = str(rep.lab_date)
     d.text((30,cardy-50), datestr, fill=(0,0,0), font=font)
 
-    #card.show()
-    #card.save('idcard.png', quality=95)
-
-
+    font = ImageFont.truetype("FreeMono.ttf",30)
+    d.text((30,cardy-150), title, fill=(0,0,0), font=font)
 
     tempFileObj = NamedTemporaryFile(mode='w+b',suffix='png')
     card.save(tempFileObj, "PNG")
