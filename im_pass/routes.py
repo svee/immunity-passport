@@ -49,6 +49,7 @@ class Report(db.EmbeddedDocument):
     lab_date = db.DateField()
     lab_report_type = db.StringField()
     lab_report = db.FileField()
+    approved = db.BooleanField(default=False)   #Used for email conformation
 
 class User(UserMixin, db.Document):
     meta = {'collection': 'PassHolders'}   #Mongodb collection name is defined here
@@ -87,8 +88,16 @@ def generate_email_confirmation(email_id):
     html = render_template('email_activation.html', confirm_url=confirm_url)
     subject = "Please confirm your email"
     # email activation is disabled for demo version now. to activate, uncomment generate_email.
-    # email.send_email(email_id, subject, html)  #email integration is not done.
-    #flash('Check your email for activation link')
+    email.send_email(email_id, subject, html)  #email integration is not done.
+    flash('Check your email for activation link')
+
+def generate_email_report_apprival(email_id, fattach):
+    token = enc_msg.gen_activation_key(email_id)
+    confirm_url = url_for('__approve', token=token, _external=True)
+    html = render_template('approval_request.html', confirm_url=confirm_url)
+    subject = "Please review attached report and click on the link to approve"
+    email.send_email(app.config['APPROVER_EMAIL'], subject, html,fattach)  #email integration is not done.
+    flash('Report is sent for approval. Download once it is done')
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -106,11 +115,14 @@ def signup():
         if existing_user is None:
             hashpass = generate_password_hash(form.password.data, method='sha256')
             newuser = User(email=form.email.data.lower(),password=hashpass).save()
-            generate_email_confirmation(form.email.data.lower())
 
-            newuser.confirmed = True  # temporary till email activation is enabled.
-            newuser.save()
-            flash('Registered Successfully; Log in with email/password')
+            if(app.config['EMAIL_ACTIVATION_ENABLED'] == True):
+                generate_email_confirmation(form.email.data.lower())
+                return redirect(url_for('login'))
+            else:
+                newuser.confirmed = True  # temporary till email activation is enabled.
+                newuser.save()
+                flash('Registered Successfully; Log in with email/password')
         else:
             flash('You have already registered; Log in with email/password')
         return redirect(url_for('login'))
@@ -182,8 +194,15 @@ def getpassport():
             flash(e.message)
             return render_template('getpassport.html', title = 'Immunity Passport Request', form=form)
 
-        tempFileObj = generate_idcard(current_user)
-        response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
+        if (app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
+            tempFileObj = generate_temp_report(current_user)
+            generate_email_report_apprival(current_user.email, tempFileObj)
+            return render_template('dashboard.html')
+        else:
+            tempFileObj = generate_idcard(current_user)
+            current_user.reports[-1].approved = True
+            current_user.save()
+            response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
         return response
 
     elif (current_user.name != None):  #User information already present; just ask for test/vaccination details 
@@ -213,8 +232,15 @@ def update():
             flash(e.message)
             return render_template('update.html', title = 'Immunity Passport Request', form=form)
 
-        tempFileObj = generate_idcard(current_user)
-        response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
+        if (app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
+            tempFileObj = generate_temp_report(current_user)
+            generate_email_report_apprival(current_user.email, tempFileObj)
+            return render_template('dashboard.html')
+        else:
+            tempFileObj = generate_idcard(current_user)
+            current_user.reports[-1].approved = True
+            current_user.save()
+            response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
         return response
 
     else:
@@ -323,25 +349,30 @@ def __verify():
         emailid = enc_msg.decrypt_msg(key)
 
         #return jsonify(receivedkey=key, email=emailid.decode('utf8'))  This was for testing only.
-
-        user_rec = User.objects(email=emailid.decode('utf8')).first()
+        try:
+            user_rec = User.objects(email=emailid.decode('utf8')).first()
+        except Exception as e:
+            return render_template('verify_response.html',"Server Error"+e.message) 
         if user_rec:
-            return 'SUCCESS: User has a VALID immunity passport!!'
-    return 'Authentication FAILED'
+            message =  'SUCCESS: User has a VALID immunity passport!!'
+        else:
+            message = 'Authentication FAILED'
+        return render_template('verify_response.html',message=message) 
 
-@app.route('/printpassport', methods=['GET', 'POST'])
+# Route to download the immunity passport. If user or lab records are missing or if lab report is not approved yet,
+# just display warning and go back to dashboard.
+@app.route('/printpassport', methods=['GET'])
 @login_required
 def printpassport():
-    if request.method == 'GET':
-        if (current_user.name == None or current_user.picture == None or len(current_user.reports) == 0):
-            flash ('Provide user/test data first using Get New option','success')
-            return redirect(url_for('dashboard'))
-        else:
-            tempFileObj = generate_idcard(current_user)
-            response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
-            return response
-
-
+    if (current_user.name == None or current_user.picture == None or len(current_user.reports) == 0):
+        flash ('Provide user/test data first using Get New option','success')
+    elif (current_user.reports[-1].approved == False):
+        flash ('Lab report is waiting for approval. Try again later','success')
+    else:
+        tempFileObj = generate_idcard(current_user)
+        response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
+        return response
+    return render_template('dashboard.html')
 
 
 
@@ -363,12 +394,35 @@ def __activate():
         flash('You have confirmed your account. Thanks!', 'success')
     return redirect(url_for('login'))
 
+@app.route('/__approve')
+def __approve():
+    form = forms.__ActivateForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration need
+    if request.method == 'GET' and form.validate():
+        token = form.token.data
+    try:
+        email = enc_msg.confirm_activation_key(token)
+    except:
+        message = 'The confirmation link is invalid or has expired.'
+    user_rec = User.objects(email=email).first()
+    if user_rec.reports[-1].approved == True:
+       message = 'Report is already approved; Thank you.'
+    else:
+        user_rec.reports[-1].approved = True
+        user_rec.save()
+        message =  'You have approved the Report. Thanks you!'
+    return render_template('approval_response.html',message=message) 
 
 import io
 from tempfile import NamedTemporaryFile
 from shutil import copyfileobj
 
 
+def generate_temp_report(current_user):
+    im_stream = current_user.reports[-1].lab_report.get()
+    tempFileObj = NamedTemporaryFile(mode='w+b',suffix='pdf')
+    tempFileObj.write(im_stream.read())
+    tempFileObj.seek(0,0)
+    return tempFileObj
 
 def generate_idcard(current_user):
 
