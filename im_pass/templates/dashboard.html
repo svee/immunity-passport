@@ -19,23 +19,23 @@
   <div class="collapse navbar-collapse" id="navbarCollapse">
     <ul class="navbar-nav mr-auto">
       <li class="nav-item active">
-        <a class="nav-link" href="/">Home <span class="sr-only">(current)</span></a>
+	      <a class="nav-link" href="{{ url_for('home') }}">Home <span class="sr-only">(current)</span></a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" href="/getpassport">New Passport</a>
+	      <a class="nav-link" href="{{ url_for('getpassport') }}">New Passport</a>
       </li>
       {% if pass_ready %}
          <li class="nav-item">
-		 <a class="nav-link" href="/printpassport">Print</a>
+		 <a class="nav-link" href="{{ url_for('printpassport') }}">Print</a>
       {% else %}
         <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">Print</a>
 	 </li>
       {% endif %}
      <li class="nav-item">
-        <a class="nav-link" href="/addprofile">Profile</a>
+	     <a class="nav-link" href="{{ url_for('addprofile') }}">Profile</a>
       </li>
      <li class="nav-item">
-        <a class="nav-link" href="/logout">Logout</a>
+	     <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
       </li>
     </ul>
   </div>
@@ -44,12 +44,12 @@
 <form class="form-signin"  method=get >
   <img class="mb-4" src="static/logo_immunity_passport.png" alt="" width="72" height="72">
   <dl>
-	  <p><a href="/getpassport"><input class="btn btn-lg btn-primary btn-block" type=button value="New Passport">
+	  <p><a href="{{ url_for('getpassport') }}"><input class="btn btn-lg btn-primary btn-block" type=button value="New Passport">
           {% if pass_ready %}
-	      <p><a href="/printpassport"><input class="btn btn-lg btn-primary btn-block" type=button value="Print">
+	  <p><a href="{{ url_for('printpassport') }}"><input class="btn btn-lg btn-primary btn-block" type=button value="Print">
 	  {% endif %}
-	  <p><a href="/addprofile"><input class="btn btn-lg btn-primary btn-block" type=button value="Profile">
-	  <p><a href="/logout"><input class="btn btn-lg btn-primary btn-block" type=button value="Logout">
+	  <p><a href="{{ url_for('addprofile') }}"><input class="btn btn-lg btn-primary btn-block" type=button value="Profile">
+		  <p><a href="{{ url_for('logout') }}"><input class="btn btn-lg btn-primary btn-block" type=button value="Logout">
 </form>
  </div>
 {% endblock %}
