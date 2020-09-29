@@ -4,7 +4,16 @@ import unittest
 from im_pass import app, mail
 from flask import url_for 
 
+# __file__ refers to the file settings.py 
+TEST_ROOT = os.path.dirname(os.path.abspath(__file__))   # refers to application_top
+TEST_ASSETS = os.path.join(TEST_ROOT, 'assets')
+
 from werkzeug.datastructures import FileStorage
+# Warning test is using same database as application. So need to be dropped each time.
+# app.config['MONGODB_SETTINGS'] = { 'db': 'db_unittest_im', 'host': 'localhost', 'port': 27017 }
+
+from mongoengine import connect, disconnect
+
 class BasicTests(unittest.TestCase):
  
     ############################
@@ -17,7 +26,11 @@ class BasicTests(unittest.TestCase):
         app.config['WTF_CSRF_ENABLED'] = False
         app.config['DEBUG'] = False
         app.config['SERVER_NAME']="127.0.0.1"
+        app.config['EMAIL_ACTIVATION_ENABLED']=True
+        app.config['SEND_PASS_BY_MAIL']= True
+        app.config['LAB_REPORT_NEEDS_APPROVAL']=True
         self.app = app.test_client()
+
  
         # Disable sending emails during unit testing
         mail.init_app(app)
@@ -81,7 +94,7 @@ class BasicTests(unittest.TestCase):
         )
 
 
-    def update_labreport(self,lab_name, lab_city, lab_country, lab_date, lab_testtype, lab_report):
+    def update_labreport(self,lab_name, lab_city, lab_country, lab_date, lab_report_type, lab_report):
         flabreport = FileStorage(
             stream=open(lab_report, "rb"),
             filename="labreport.pdf",
@@ -89,11 +102,11 @@ class BasicTests(unittest.TestCase):
         )
         return self.app.post(
            '/update',
-           data=dict(lab_name=lab_name, lab_city=lab_city, lab_country=lab_country, lab_date=lab_date, lab_testtype=lab_testtype, lab_report=flabreport, submit_button='Submit'),
+           data=dict(lab_name=lab_name, lab_city=lab_city, lab_country=lab_country, lab_date=lab_date, lab_report_type=lab_report_type, lab_report=flabreport, submit_button='Submit'),
            content_type="multipart/form-data",
            follow_redirects=True
         )
-    def update_user_and_labreport(self,lab_name, lab_city, lab_country, lab_date, lab_testtype, lab_report,username,prof_pic):
+    def update_user_and_labreport(self,lab_name, lab_city, lab_country, lab_date, lab_report_type, lab_report,username,prof_pic):
         fprofpic = FileStorage(
            stream=open(prof_pic, "rb"),
            filename="profpic.jpg",
@@ -106,7 +119,7 @@ class BasicTests(unittest.TestCase):
         )
         return self.app.post(
            '/getpassport',
-           data=dict(lab_name=lab_name, lab_city=lab_city, lab_country=lab_country, lab_date=lab_date, lab_testtype=lab_testtype, lab_report=flabreport, username=username, picture=fprofpic,submit_button='Submit'),
+           data=dict(lab_name=lab_name, lab_city=lab_city, lab_country=lab_country, lab_date=lab_date, lab_report_type=lab_report_type, lab_report=flabreport, username=username, picture=fprofpic,submit_button='Submit'),
            content_type="multipart/form-data",
            follow_redirects=True
         )
@@ -128,87 +141,129 @@ class BasicTests(unittest.TestCase):
             follow_redirects=True
         )
  
+    def activate_valid_user1(self):
+        return self.app.get(
+             '/__activate?token=InZhbGlkdXNlcjFAbm9tYWlsLmNvbSI.X27TLA.eIM92tmDjwKqDGbpxteYtB_1xmM',
+            follow_redirects=True
+
+        )
+    def activate_valid_user2(self):
+        return self.app.get(
+            '/__activate?token=InZhbGlkdXNlcjJAbm9tYWlsLmNvbSI.X27Xvw.qtIJcHLdRlG-GtTh-6BQSVMsMKI',
+            follow_redirects=True
+
+        )
+    def approve_report_valid_user1(self):
+        return self.app.get(
+             '/__approve?token=InZhbGlkdXNlcjFAbm9tYWlsLmNvbSI.X27UhA.gXz0AivcIq2pSucmhjSnUOH4bF4',
+            follow_redirects=True
+        )
+    def approve_report_valid_user2(self):
+        return self.app.get(
+             '/__approve?token=InZhbGlkdXNlcjJAbm9tYWlsLmNvbSI.X27adQ.gppC4XZwlQlg7alJKwi6j_D8-cY',
+            follow_redirects=True
+        )
+    def verify_valid_user1(self):
+        return self.app.get(
+             '/__verify?key=gAAAAABfbwKeehk8AttRbIvNZnKastFn9ZuiN0a5O8F7svmMdWNnumxtWYMvOqJmYJ1a8LGr4agZ6Igr1gDfHWY4TReqXv_QhDr9fEqPM7fKyv4trIy4-Dw%3D',
+            follow_redirects=True
+        )
 ###############
 #### tests ####
 ###############
     def test_001_valid_user_registration(self):
-        response = self.register('validuser1@gmail.com', 'validpassword', 'validpassword')
+        response = self.register('validuser1@nomail.com', 'validpassword', 'validpassword')
         self.assertEqual(response.status_code, 200)
-        #self.assertIn(b'Check your email for activation link', response.data) 
+        if (app.config['EMAIL_ACTIVATION_ENABLED']==True):
+            self.assertIn(b'Check your email for activation link', response.data) 
+            response = self.login("validuser1@nomail.com", "validpassword")
+            self.assertIn(b"Activate your account by confirming email",response.data)
+            response = self.activate_valid_user1()
+            self.assertIn(b'Login - Immunity Passport', response.data)
+            response = self.login("validuser1@nomail.com", "validpassword")
+            self.assertEqual(response.status_code, 200)
 
     def test_002_invalid_user_registration_different_passwords(self):
-        response = self.register('invalid_user1@gmail.com', 'validpassword', 'nomatchforyou')
+        response = self.register('invalid_user1@nomail.com', 'validpassword', 'nomatchforyou')
         self.assertIn(b'Passwords must match', response.data)
 
     def test_003_valid_login(self):
-        response = self.login("validuser1@gmail.com", "validpassword")
+        response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
 
-    def test_012_print_when_no_record(self):
-        response = self.login("validuser1@gmail.com", "validpassword")
+    def test_004_print_when_no_record(self):
+        response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
         response = self.print_passport()
         self.assertIn(b'Provide user/test data first', response.data)
     
-    def test_004_add_profile(self):  # Each test is independent. I have to go through login again.
-        response = self.login("validuser1@gmail.com", "validpassword")
+    def test_005_add_profile(self):  # Each test is independent. I have to go through login again.
+        response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
-        prof_pic = os.path.join("/home/vee/python/impassport/im_pass/tests/assets/profpic1.jpg")
+        prof_pic = os.path.join(TEST_ASSETS,"profpic1.jpg")
         response = self.add_profile("Jonhy Chang",prof_pic)
         self.assertIn(b'Profile is updated Successfully', response.data)
     
-    def test_005_add_profile_again(self):  # Should not be issue. It will take as update automatically
-        response = self.login("validuser1@gmail.com", "validpassword")
+    def test_006_add_profile_again(self):  # Should not be issue. It will take as update automatically
+        response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
-        prof_pic = os.path.join("/home/vee/python/impassport/im_pass/tests/assets/profpic1.jpg")
+        prof_pic = os.path.join(TEST_ASSETS,"profpic1.jpg")
         response = self.add_profile("David Boom",prof_pic)
         self.assertIn(b'Profile is updated Successfully', response.data)
         response = self.get_profile()
         self.assertIn(b'David Boom', response.data)
 
-    def test_006_add_update_profile(self):  # Should not be issue. It will take as update automatically
-        response = self.login("validuser1@gmail.com", "validpassword")
+    def test_007_add_update_profile(self):  # Should not be issue. It will take as update automatically
+        response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
         response = self.get_profile()
-        prof_pic = os.path.join("/home/vee/python/impassport/im_pass/tests/assets/profpic2.jpg")
+        prof_pic = os.path.join(TEST_ASSETS,"profpic2.jpg")
         response = self.update_profile("Kevin Dan",prof_pic)
         self.assertIn(b'Profile is updated Successfully', response.data)
         response = self.get_profile()
         self.assertIn(b'Kevin Dan', response.data)
 
-    def test_007_add_update_profile(self):  # Update profile should also be able to handle missing field.
-        response = self.login("validuser1@gmail.com", "validpassword")
+    def test_008_add_update_profile(self):  # Update profile should also be able to handle missing field.
+        response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
-        prof_pic = os.path.join("/home/vee/python/impassport/im_pass/tests/assets/profpic2.jpg")
+        prof_pic = os.path.join(TEST_ASSETS,"profpic2.jpg")
         response = self.update_profile("Changed Nameonly")
         self.assertIn(b'Profile is updated Successfully', response.data)
         response = self.get_profile()
         self.assertIn(b'Changed Nameonly', response.data)
 
-    def test_012_print_when_only_profile_present(self):
-        response = self.login("validuser1@gmail.com", "validpassword")
+    def test_009_print_when_only_profile_present(self):
+        response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
         response = self.print_passport()
         self.assertIn(b'Provide user/test data first', response.data)
 
-    def test_020_update_report(self):
-        response = self.login("validuser1@gmail.com", "validpassword")
+    def test_010_update_report(self):
+        response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
-        lab_report = os.path.join("/home/vee/python/impassport/im_pass/tests/assets/report1.pdf")
-        response = self.update_labreport("Name of lab", "my city", "my country", "2020-10-02", "True", lab_report)
-#        self.assertIn('Immunity Passport.png', response.getheader('Content-Disposition'))
-        self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
+        lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
+        response = self.update_labreport("Name of lab", "my city", "my country", "2020-09-02", "Vaccination", lab_report)
+        if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
+            self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
+            response = self.approve_report_valid_user1()
+            self.assertIn(b'You have approved the Report. Thank you!',response.data)
+            response = self.approve_report_valid_user1()  #Try again
+            self.assertIn(b'Report is already approved; Thank you',response.data)
+            response = self.print_passport()
+            self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
+        else:
+            self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
     
-    def test_007_goto_dashboard_vailid(self):
+    def test_011_goto_dashboard_vailid(self):
         response = self.dashboard()
         self.assertEqual(response.status_code, 200)
 
-    def test_008_valid_logout(self):
+    def test_012_valid_logout(self):
         response = self.logout()
         self.assertEqual(response.status_code, 200)
 
-    def test_021_valid_gets(self):
-        response = self.login("validuser1@gmail.com", "validpassword")
+    def test_013_valid_gets(self):
+        response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
         response =  self.app.get(
             '/updateprofile',
@@ -221,12 +276,7 @@ class BasicTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         response =  self.app.get(
-            '/home',
-            follow_redirects=True
-        )
-        self.assertEqual(response.status_code, 200)
-        response =  self.app.get(
-            '/editprofile',
+            '/updateprofile',
             follow_redirects=True
         )
         self.assertEqual(response.status_code, 200)
@@ -245,36 +295,83 @@ class BasicTests(unittest.TestCase):
             follow_redirects=True
         )
         self.assertEqual(response.status_code, 200)
+        response =  self.app.get(
+            '/',
+            follow_redirects=True
+        )
+        self.assertEqual(response.status_code, 200)
 
 
-    def test_007_goto_dashboard_invalid(self): #Not logged in
+    def test_014_goto_dashboard_invalid(self): #Not logged in
         response = self.dashboard()
         self.assertIn(b'Please log in to access this page', response.data)
     
-    def test_020_add_user_and_labreport(self):
-        response = self.register('validuser2@gmail.com', 'validpassword', 'validpassword')
+    def test_015_add_user_and_labreport(self):
+        response = self.register('validuser2@nomail.com', 'validpassword', 'validpassword')
         self.assertEqual(response.status_code, 200)
-        response = self.login("validuser2@gmail.com", "validpassword")
+        if (app.config['EMAIL_ACTIVATION_ENABLED']==True):
+            self.assertIn(b'Check your email for activation link', response.data) 
+            response = self.activate_valid_user2()
+            self.assertIn(b'Login - Immunity Passport', response.data)
+        response = self.login("validuser2@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
-        lab_report = os.path.join("/home/vee/python/impassport/im_pass/tests/assets/report1.pdf")
-        prof_pic = os.path.join("/home/vee/python/impassport/im_pass/tests/assets/profpic2.jpg")
-        response = self.update_user_and_labreport("Name of lab", "my city", "my country", "2020-10-02", "True", lab_report,"Brandnew User", prof_pic)
-        #self.assertIn('Immunity Passport.png', response.getheader('Content-Disposition'))
-        self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
+        lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
+        prof_pic = os.path.join(TEST_ASSETS,"profpic2.jpg")
+        response = self.update_user_and_labreport("Name of lab", "my city", "my country", "2020-09-02", "Vaccination", lab_report,"Brandnew User", prof_pic)
+        if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
+            self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
+            response = self.approve_report_valid_user2()
+            self.assertIn(b'You have approved the Report. Thank you!',response.data)
+            response = self.print_passport()
+            self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
+        else:
+            self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
 
-    def test_009_invalid_password_login(self):
-        response = self.login("validuser1@gmail.com", "invalidpassword")
+    def test_016_invalid_password_login(self):
+        response = self.login("validuser1@nomail.com", "invalidpassword")
         self.assertIn(b'Invalid Credentials', response.data)
         response = self.logout()
         self.assertEqual(response.status_code, 200)
 
-    def test_010_invalid_email_login(self):
-        response = self.login("not_a_validuser1@gmail.com", "validpassword")
+    def test_017_invalid_email_login(self):
+        response = self.login("not_a_validuser1@nomail.com", "validpassword")
         self.assertIn(b'Invalid Credentials', response.data)
 
-    def test_011_invalid_logout(self):
+    def test_018_invalid_logout(self):
         response = self.logout()
         self.assertIn(b'Please log in to access this page', response.data)
+
+    def test_019_verify_report_expired(self):
+        response = self.login("validuser1@nomail.com", "validpassword")
+        self.assertEqual(response.status_code, 200)
+        lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
+        response = self.update_labreport("Name of lab", "my city", "my country", "2018-09-02", "Antibody Test", lab_report) #old; this should expire
+        if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
+            self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
+            response = self.approve_report_valid_user1()
+            self.assertIn(b'You have approved the Report. Thank you!',response.data)
+            response = self.print_passport()
+            self.assertIn (b'Your Report has expired; submit new lab report',response.data)
+        else:
+            self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
+        response = self.verify_valid_user1()
+        self.assertIn(b'FAILURE', response.data)
+
+    def test_020_verify_report_valid(self):
+        response = self.login("validuser1@nomail.com", "validpassword")
+        self.assertEqual(response.status_code, 200)
+        lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
+        response = self.update_labreport("Name of lab", "my city", "my country", "2020-09-02", "Vaccination", lab_report) #old; this should expire
+        if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
+            self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
+            response = self.approve_report_valid_user1()
+            self.assertIn(b'You have approved the Report. Thank you!',response.data)
+            response = self.print_passport()
+            self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
+        else:
+            self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
+        response = self.verify_valid_user1()
+        self.assertIn(b'SUCCESS', response.data)
 
 
     def test_000_main_page(self):
@@ -284,3 +381,5 @@ class BasicTests(unittest.TestCase):
  
 if __name__ == "__main__":
     unittest.main()
+
+

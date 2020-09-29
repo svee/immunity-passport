@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Login{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 {% block head %}
     {{ super() }}
  
@@ -19,7 +19,7 @@
     {{ render_field(form.lab_country) }}
     {{ render_field(form.lab_date) }}
     {{ render_field(form.lab_report_type) }}
-    <br><br>
+    <br>
     {{ render_field(form.lab_report) }}
   </dl>
   <p><input class="btn btn-lg btn-primary btn-block"  name=submit_button type=submit value="Submit">

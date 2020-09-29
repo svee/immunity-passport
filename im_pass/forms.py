@@ -7,22 +7,23 @@ Created on Tue Aug 25 10:56:59 2020
 """
 
 from flask_wtf import FlaskForm, RecaptchaField
-from wtforms import Form, BooleanField,DateField, StringField, SelectField, PasswordField, SubmitField, validators
+from wtforms import Form, BooleanField,DateField, StringField, SelectField, PasswordField, SubmitField, validators, IntegerField
 #Note: Submit is currently handled inside jinja template.
 
 
 from wtforms.validators import DataRequired,Email, Length, InputRequired, ValidationError
 from flask_wtf.file import FileField, FileRequired, FileAllowed
 
-# Covid Test is used to generate Covid Pass - that is someone is currently clear of Covid
+from datetime import datetime, timedelta
+
+# Covid- Real Time PCR is used to generate Covid Pass - that is someone is currently clear of Covid
 # Antibody Test is used to generate Immunity Pass for prescribed period 
 # Antibody Test is used to generate Immunity Pass for prescribed period as per vaccination recoddemdations
 REPORT_TYPE = [
-        ("Covid Test","Covid Test"),
+        ("Covid- Real Time PCR","Covid- Real Time PCR"),
         ("Antibody Test","Antibody Test"),
         ("Vaccination","Vaccination"),
         ]
-
 
 
 class SignupForm(FlaskForm):
@@ -84,6 +85,10 @@ class __VerifyForm(FlaskForm):
 
 class __ActivateForm(FlaskForm):
     token = StringField('key', [validators.Length(min=4, max=500)])
+
+class __ApproveForm(FlaskForm):
+    token = StringField('key', [validators.Length(min=4, max=500)])
+    report_index = IntegerField('index')
 
 class AddProfileForm(FlaskForm):
    username = StringField('Full Name',  [validators.Length(min=4, max=25)])

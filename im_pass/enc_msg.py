@@ -28,7 +28,7 @@ def gen_activation_key(email):
     return serializer.dumps(email, salt="activate")
 
 
-def confirm_activation_key(token, expiration=3600):
+def confirm_activation_key(token, expiration=None):   #Note that email activation link never expires; can change to shorter value.
     serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
     try:
         email = serializer.loads(

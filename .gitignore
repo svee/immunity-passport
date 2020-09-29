@@ -10,3 +10,4 @@ tmp
 .coverage
 .=*
 im_pass/tests/assets
+deploy

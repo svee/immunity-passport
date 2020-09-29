@@ -1,46 +1,31 @@
 
+# .....
+# main routing module with functions for signup, login and other functions
+#
 
 from flask import render_template,redirect, url_for, request, flash,  send_file
 
-# .....
-
-
 from im_pass import app  #From this package. app is created in __init__
 from im_pass import forms #Notice forms.SignupForm, etc...  way to access object in other file. 
+from im_pass import settings 
+from im_pass import enc_msg
+from im_pass import gen_pass 
 
 
 
 from flask_mongoengine import MongoEngine, Document
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from mongoengine import *
 from wtforms import StringField, PasswordField, FileField
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont 
-import os.path
+from datetime import datetime, timedelta
 
-
-from im_pass import settings 
 from flask import jsonify
-
-from im_pass import enc_msg
-
 import base64
 
-app.config['MONGODB_SETTINGS'] = {
-    'db': 'db_impass',
-    'host': 'localhost',
-    'port': 27017
-}
-
-# Configure how long report s valid for each of the tests (in days)
-app.config['REPORT_VALIDITY'] = {
-        "CovidTest":3,
-        "AntibodyTest":60,
-        "Vaccination":180
-        }
 
 db = MongoEngine(app)
 
@@ -64,13 +49,14 @@ class User(UserMixin, db.Document):
     password = db.StringField()
     confirmed = db.BooleanField(default=False)   #Used for email conformation
     name = db.StringField(max_length=30)
-    picture=db.ImageField(size=(160,160,True))
+    #picture=db.ImageField(size=(160,160,True))   #Limitation Mongoengine does not maintain aspect ratio. So need to use PIL
+    picture=db.ImageField() 
     reports = ListField(EmbeddedDocumentField(Report))
 
 
 @app.errorhandler(413)
 def error413(e):
-    flash("Size of Picture/Report cannot exceed 1MB")
+    flash("Size of Picture/Report recommended 1MB; cannot exceed 5MB")
     return render_template('dashboard.html')
 
 @login_manager.user_loader
@@ -83,6 +69,8 @@ def load_user(user_id):
 
 @app.route('/')
 def home():
+    if (current_user and current_user.is_authenticated == True):
+        return redirect(url_for('dashboard'))
     return render_template('home.html')
 
 
@@ -94,32 +82,47 @@ def generate_email_confirmation(email_id):
     confirm_url = url_for('__activate', token=token, _external=True)
     html = render_template('email_activation.html', confirm_url=confirm_url)
     subject = "Please confirm your email"
-    email.send_email(email_id, subject, html)  #email integration is not done.
+    try:
+       email.send_email(email_id, subject, html)  #email integration is not done.
+    except Exception as e:
+        flash("Error connecting to email server; try again later")
     flash('Check your email for activation link')
 
-def generate_email_report_apprival(email_id, fattach, name, lab_name, lab_city, lab_country, lab_date, lab_report_type):
+def generate_email_report_approval(email_id, fattach, name, lab_name, lab_city, lab_country, lab_date, lab_report_type,report_index):
     token = enc_msg.gen_activation_key(email_id)
-    confirm_url = url_for('__approve', token=token, _external=True)
+    confirm_url = url_for('__approve', token=token, report_index=report_index,_external=True)
     html = render_template('approval_request.html', confirm_url=confirm_url,
                             name=name, lab_name=lab_name, lab_city=lab_city, lab_country=lab_country, 
                             lab_date=lab_date, lab_report_type=lab_report_type)
     subject = "Please review attached report and click on the link to approve"
-    email.send_email(app.config['APPROVER_EMAIL'], subject, html,fattach, "report.pdf","pdf")  #email integration is not done.
+    try:
+       email.send_email(app.config['APPROVER_EMAIL'], subject, html,fattach, "report.pdf","pdf")  #email integration is not done.
+    except Exception as e:
+        flash("Error connecting to email server; try again later")
+        return
     flash('Report is sent for approval. Download once it is done')
 
 # Once the report is approved, this is called to send immunity pass through e-mail
 def generate_email_immunity_pass(email_id, fattach):
     html = render_template('passportby_mail.html')
     subject = "Your immunity pass is approved"
-    email.send_email(email_id, subject, html,fattach,"immunity_passport.png", "png")  #email integration is not done.
+    try:
+        email.send_email(email_id, subject, html,fattach,"immunity_passport.png", "png")  #email integration is not done.
+    except Exception as e:
+        return   #Silent here as user can later download always.
 
-from datetime import datetime, timedelta
+
+def is_date_later_than_today(input_date):
+    today = datetime.today().date()
+    if (input_date > today):
+        return True
+    return False
 
 # Checks if the lab report in hand has expired
 def check_if_expired(rep_type, rep_date):
     today = datetime.today().date()
     expired=False
-    if rep_type == "Covid Test":
+    if rep_type == "Covid- Real Time PCR":
         if (rep_date + timedelta(days=app.config['REPORT_VALIDITY']['CovidTest']) < today):
                 expired = True;
     elif rep_type == "Antibody Test":
@@ -169,6 +172,8 @@ def login():
         return redirect(url_for('dashboard'))
     form = forms.LoginForm()
     if request.method == 'POST' and form.validate():
+        print(form.email.data)
+        print(form.password.data)
         try:
             user_rec = User.objects(email=form.email.data.lower()).first()
         except Exception as e:
@@ -205,6 +210,10 @@ def getpassport():
         return redirect(url_for('dashboard'))
     form = forms.GetPassportForm()
     if request.method == 'POST' and form.validate() and  request.form['submit_button'] == 'Submit':
+        if (is_date_later_than_today(form.lab_date.data)):
+            flash("Report Date cannot be later than today")
+            return render_template('getpassport.html', title = 'Immunity Passport Request', form=form)
+
         rep = Report(lab_name=form.lab_name.data, lab_city=form.lab_city.data, 
             lab_country=form.lab_country.data,lab_date=form.lab_date.data, lab_report_type=form.lab_report_type.data)
 
@@ -217,6 +226,7 @@ def getpassport():
             current_user.name = form.username.data
             pf = form.picture.data
             filename = secure_filename(pf.filename) #May be I can make the file names to be legit or safer this way.
+            gen_pass.optimize_image(pf)
             if(current_user.picture == None):  #First time updating
                 current_user.picture.put(pf) 
             else:
@@ -228,13 +238,15 @@ def getpassport():
             return render_template('getpassport.html', title = 'Immunity Passport Request', form=form)
 
         if (app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
-            tempFileObj = generate_temp_report(current_user)
+            tempFileObj = gen_pass.generate_temp_report(current_user)
             rep = current_user.reports[-1]
-            generate_email_report_apprival(current_user.email, tempFileObj, current_user.name, 
-                    rep.lab_name, rep.lab_city, rep.lab_country, rep.lab_date, rep.lab_report_type)
-            return render_template('dashboard.html')
+            report_index = len(current_user.reports)-1
+            generate_email_report_approval(current_user.email, tempFileObj, current_user.name, 
+                    rep.lab_name, rep.lab_city, rep.lab_country, rep.lab_date, rep.lab_report_type,report_index)
+            return redirect(url_for('dashboard'))
         else:
-            tempFileObj = generate_idcard(current_user)
+            auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(current_user.email)) #Need to encrypt
+            tempFileObj = gen_pass.generate_idcard(current_user,auth_url)
             current_user.reports[-1].approved = True
             current_user.save()
             response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
@@ -252,6 +264,13 @@ def update():
         return redirect(url_for('dashboard'))
     form = forms.UpdateCovidTestForm()
     if request.method == 'POST' and form.validate():
+        if (is_date_later_than_today(form.lab_date.data)):
+            flash("Report Date cannot be later than today")
+            return render_template('update.html', title = 'Immunity Passport Request', form=form)
+#        elif (len(current_user.reports) and current_user.reports[-1].approved == False):
+#            flash ('Current report is waiting for approval. Try again later','success')
+#            return render_template('update.html', title = 'Immunity Passport Request', form=form)
+
         rep = Report(lab_name=form.lab_name.data, lab_city=form.lab_city.data, 
             lab_country=form.lab_country.data,lab_date=form.lab_date.data, lab_report_type=form.lab_report_type.data)
 
@@ -268,13 +287,15 @@ def update():
             return render_template('update.html', title = 'Immunity Passport Request', form=form)
 
         if (app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
-            tempFileObj = generate_temp_report(current_user)
+            tempFileObj = gen_pass.generate_temp_report(current_user)
             rep = current_user.reports[-1]
-            generate_email_report_apprival(current_user.email, tempFileObj, current_user.name, 
-                    rep.lab_name, rep.lab_city, rep.lab_country, rep.lab_date, rep.lab_report_type)
-            return render_template('dashboard.html')
+            report_index = len(current_user.reports)-1
+            generate_email_report_approval(current_user.email, tempFileObj, current_user.name, 
+                    rep.lab_name, rep.lab_city, rep.lab_country, rep.lab_date, rep.lab_report_type,report_index)
+            return redirect(url_for('dashboard'))
         else:
-            tempFileObj = generate_idcard(current_user)
+            auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(current_user.email)) #Need to encrypt
+            tempFileObj = gen_pass.generate_idcard(current_user,auth_url)
             current_user.reports[-1].approved = True
             current_user.save()
             response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
@@ -301,6 +322,7 @@ def addprofile():
 
         pf = form.picture.data
         filename = secure_filename(pf.filename)
+        gen_pass.optimize_image(pf)
 
         try:
             if(current_user.picture == None):  #First time updating
@@ -340,6 +362,7 @@ def updateprofile():
         try:
             if (pf):
                 filename = secure_filename(pf.filename)
+                gen_pass.optimize_image(pf)
                 if(current_user.picture == None):  #First time updating
                     current_user.picture.put(pf) 
                 else:
@@ -356,7 +379,8 @@ def updateprofile():
             return render_template('updateprofile.html', title = 'Edit Profile Data', 
                                profile_pic=img, email=current_user.email, name=current_user.name,form=form)
 
-        flash('Profile is updated Successfully')
+        if(form.username.data or pf):  #Success message only when there is an update
+            flash('Profile is updated Successfully')
         return redirect(url_for('dashboard'))
 
 
@@ -391,9 +415,12 @@ def __verify():
         except Exception as e:
             return render_template('verify_response.html',"Server Error"+e.message) 
         if user_rec:
-            message =  'SUCCESS: User has a VALID immunity passport!!'
+            if (check_if_expired(user_rec.reports[-1].lab_report_type,user_rec.reports[-1].lab_date) == True):
+                message = 'FAILURE: User has an expired report'
+            else:
+                message =  'SUCCESS: User has a VALID immunity passport!!'
         else:
-            message = 'Authentication FAILED'
+            message = 'FAILURE: Authentication FAILED'
         return render_template('verify_response.html',message=message) 
 
 # Route to download the immunity passport. If user or lab records are missing or if lab report is not approved yet,
@@ -408,10 +435,11 @@ def printpassport():
     elif (check_if_expired(current_user.reports[-1].lab_report_type,current_user.reports[-1].lab_date) == True):
         flash ('Your Report has expired; submit new lab report','success')
     else:
-        tempFileObj = generate_idcard(current_user)
+        auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(current_user.email)) #Need to encrypt
+        tempFileObj = gen_pass.generate_idcard(current_user,auth_url)
         response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
         return response
-    return render_template('dashboard.html')
+    return render_template('dashboard.html',pass_ready=True)
 
 
 
@@ -424,129 +452,41 @@ def __activate():
         email = enc_msg.confirm_activation_key(token)
     except:
         flash('The confirmation link is invalid or has expired.', 'danger')
-    user_rec = User.objects(email=email).first()
-    if user_rec.confirmed:
-        flash('Account confirmed. Please login.', 'success')
-    else:
-        user_rec.confirmed = True
-        user_rec.save()
-        flash('You have confirmed your account. Thanks!', 'success')
-    return redirect(url_for('login'))
+    if(email):
+        user_rec = User.objects(email=email).first()
+        if user_rec.confirmed:
+            flash('Account confirmed. Please login.', 'success')
+        else:
+            user_rec.confirmed = True
+            user_rec.save()
+            flash('You have confirmed your account. Thanks!', 'success')
+            return redirect(url_for('login'))
+    return render_template('home.html')  #invalid link, expired token... we just return to home page.
 
 @app.route('/__approve')
 def __approve():
-    form = forms.__ActivateForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration need
+    form = forms.__ApproveForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration need
     if request.method == 'GET' and form.validate():
         token = form.token.data
+        report_index = form.report_index.data
     try:
         email = enc_msg.confirm_activation_key(token)
     except:
         message = 'The confirmation link is invalid or has expired.'
     user_rec = User.objects(email=email).first()
-    if user_rec.reports[-1].approved == True:
+    if (user_rec == None or report_index >= len(user_rec.reports)):
+        message = 'The confirmation link is invalid or has expired.'
+    if user_rec.reports[report_index].approved == True:
        message = 'Report is already approved; Thank you.'
     else:
-        user_rec.reports[-1].approved = True
+        user_rec.reports[report_index].approved = True
         user_rec.save()
-        message =  'You have approved the Report. Thanks you!'
+        message =  'You have approved the Report. Thank you!'
+        if (app.config['SEND_PASS_BY_MAIL'] == True and 
+                check_if_expired(user_rec.reports[report_index].lab_report_type,user_rec.reports[report_index].lab_date) == False):
 
-
-    if (app.config['SEND_PASS_BY_MAIL'] == True and 
-            check_if_expired(user_rec.reports[-1].lab_report_type,user_rec.reports[-1].lab_date) == False):
-            tempFileObj = generate_idcard(user_rec)
+            auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(user_rec.email)) #Need to encrypt
+            tempFileObj = gen_pass.generate_idcard(user_rec,auth_url)
             generate_email_immunity_pass(user_rec.email, tempFileObj)
 
     return render_template('approval_response.html',message=message) 
-
-import io
-from tempfile import NamedTemporaryFile
-from shutil import copyfileobj
-
-
-def generate_temp_report(current_user):
-    im_stream = current_user.reports[-1].lab_report.get()
-    tempFileObj = NamedTemporaryFile(mode='w+b',suffix='pdf')
-    tempFileObj.write(im_stream.read())
-    tempFileObj.seek(0,0)
-    return tempFileObj
-
-def generate_idcard(current_user):
-    rep_type = current_user.reports[-1].lab_report_type
-    if rep_type == "Covid Test":
-        title = "Covid Tested"
-    elif rep_type == "Antibody Test":
-        title = "Tested for Antibody"
-    elif rep_type == "Vaccination":
-        title = "Vaccination Done"
-    else:
-        title="Unknown"  #should not come here
-
-
-    card = Image.open(os.path.join(settings.APP_STATIC, 'Immunity Passport.png'))
-    cardx, cardy = card.size
-
-    im_stream = current_user.picture.get()
-    photo = Image.open(im_stream)
-
-
-    MAX_SIZE = (160,160)
-    photo.thumbnail(MAX_SIZE, Image.ANTIALIAS) #Maintains the aspect ratio.; May be store small file itself in database once size is standardized
-    photox, photoy = photo.size
-
-    qrcode = generate_auth_qrcode(current_user)
-    qrx, qry = qrcode.size
-
-    stamp = Image.open(os.path.join(settings.APP_STATIC, 'IssuingAuthority.png'))
-    stamp.thumbnail(MAX_SIZE, Image.ANTIALIAS) #Maintains the aspect ratio. 
-    stampx, stampy = stamp.size
-
-    card.paste(qrcode, ((cardx//2 - qrx//2), (cardy//2 - qry//2)-50))
-    card.paste(photo, (cardx - photox - 30, cardy - photoy - 30))
-    card.paste(stamp, (cardx - stampx - 30, 30))
-
-    d = ImageDraw.Draw(card)
-    font = ImageFont.truetype("FreeMono.ttf",20)
-    d.text((30,cardy-75), current_user.name, fill=(0,0,0), font=font)  #Need to strp after certain length ?
-
-    rep = current_user.reports[-1]
-    datestr = str(rep.lab_date)
-    d.text((30,cardy-50), datestr, fill=(0,0,0), font=font)
-
-    font = ImageFont.truetype("FreeMono.ttf",30)
-    d.text((30,cardy-150), title, fill=(0,0,0), font=font)
-
-    tempFileObj = NamedTemporaryFile(mode='w+b',suffix='png')
-    card.save(tempFileObj, "PNG")
-    tempFileObj.seek(0,0)
-
-    return tempFileObj
-
-
-# Import QRCode from pyqrcode 
-import qrcode 
-
-
-
-def ggenerate_auth_qrcode(current_user):
-    # String which represents the QR code 
-    authurl = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(current_user.email)) #Need to encrypt
-    # Generate QR code 
-    img = qrcode.make(authurl) 
-    return img 
-
-
-def generate_auth_qrcode(current_user):
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=5,
-        border=2,
-    )
-    authurl = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(current_user.email)) #Need to encrypt
-    qr.add_data(authurl)
-    qr.make(fit=True)
-
-    img = qr.make_image(fill_color="black", back_color="white")
-    return img
-
-
