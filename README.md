@@ -13,9 +13,6 @@ Wishful thinking - originally built for managing generation of  immunity passpo
 
 User Guide:
 
-Access Demo Here : <to be done>
-
-
 Step -1:  Sign-up, 
 Step-2: Activate account through link sent to registered email.  ( email activation process is disabled for demo version)
 Step-3: Login 
@@ -26,6 +23,8 @@ Beyond the validity of the Pass one can get the New Pass again with required tes
 
 Note: Demo version is 'mailtrpped' - so your email will not be flooded with any mails from this app.
             Because of internal server and tunneling and mailtrap ; it seems much slower in demo.
+            
+Access Demo Here : <to be done>
 
 Application Scenarios:
 
