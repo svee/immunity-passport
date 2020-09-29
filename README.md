@@ -20,9 +20,6 @@ Step-4: Update Profile
 Step-5: Apply for New Pass  Once approval is done, pass gets mailed to registered e-mail ID. Also one can come back to dashboard and download the same.
 
 Beyond the validity of the Pass one can get the New Pass again with required test/vaccination report.
-
-Note: Demo version is 'mailtrpped' - so your email will not be flooded with any mails from this app.
-            Because of internal server and tunneling and mailtrap ; it seems much slower in demo.
             
 Access Demo Here : <to be done>
 
