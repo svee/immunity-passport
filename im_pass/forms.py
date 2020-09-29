@@ -16,6 +16,14 @@ from flask_wtf.file import FileField, FileRequired, FileAllowed
 
 from datetime import datetime, timedelta
 
+
+import pycountry
+
+class CountrySelectField(SelectField):
+    def __init__(self, *args, **kwargs):
+        super(CountrySelectField, self).__init__(*args, **kwargs)
+        self.choices = [(country.alpha_2, country.name) for country in pycountry.countries]
+
 # Covid- Real Time PCR is used to generate Covid Pass - that is someone is currently clear of Covid
 # Antibody Test is used to generate Immunity Pass for prescribed period 
 # Antibody Test is used to generate Immunity Pass for prescribed period as per vaccination recoddemdations
@@ -59,7 +67,8 @@ class GetPassportForm(FlaskForm):
 
     lab_name = StringField('Lab Name', [validators.Length(min=4, max=25)])
     lab_city = StringField('City', [validators.Length(min=4, max=25)])
-    lab_country = StringField('Country', [validators.Length(min=4, max=25)])
+    #lab_country = StringField('Country', [validators.Length(min=4, max=25)])
+    lab_country = CountrySelectField("Country")
     lab_date = DateField('Date of Covid test', 
             render_kw={"placeholder": "yyyy-mm-dd"}, 
             validators=[InputRequired()])
@@ -72,7 +81,9 @@ class GetPassportForm(FlaskForm):
 class UpdateCovidTestForm(FlaskForm):
     lab_name = StringField('Lab Name', [validators.Length(min=8, max=40)])
     lab_city = StringField('City', [validators.Length(min=4, max=25)])
-    lab_country = StringField('Country', [validators.Length(min=4, max=25)])
+    #lab_country = StringField('Country', [validators.Length(min=4, max=25)])
+    #lab_country = CountryField("Country",blank_label='(select country)')
+    lab_country = CountrySelectField("Country")
     lab_date = DateField('Date of Covid test', 
             render_kw={"placeholder": "yyyy-mm-dd"}, 
             validators=[InputRequired()])

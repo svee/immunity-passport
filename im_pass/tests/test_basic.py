@@ -143,7 +143,7 @@ class BasicTests(unittest.TestCase):
  
     def activate_valid_user1(self):
         return self.app.get(
-             '/__activate?token=InZhbGlkdXNlcjFAbm9tYWlsLmNvbSI.X27TLA.eIM92tmDjwKqDGbpxteYtB_1xmM',
+             '/__activate?token=InZhbGlkdXNlcjFAbm9tYWlsLmNvbSI.X3MRBw.CZIm_4tKuRzwhmlVSRRLBmSgbtg',
             follow_redirects=True
 
         )
@@ -155,17 +155,17 @@ class BasicTests(unittest.TestCase):
         )
     def approve_report_valid_user1(self):
         return self.app.get(
-             '/__approve?token=InZhbGlkdXNlcjFAbm9tYWlsLmNvbSI.X27UhA.gXz0AivcIq2pSucmhjSnUOH4bF4',
+            '/__approve?token=InZhbGlkdXNlcjFAbm9tYWlsLmNvbSI.X3MUzQ.j4jPiKqv0A87DJPYzxf5ABRsEhE&report_index=0',
             follow_redirects=True
         )
     def approve_report_valid_user2(self):
         return self.app.get(
-             '/__approve?token=InZhbGlkdXNlcjJAbm9tYWlsLmNvbSI.X27adQ.gppC4XZwlQlg7alJKwi6j_D8-cY',
+            '/__approve?token=InZhbGlkdXNlcjJAbm9tYWlsLmNvbSI.X3MVRw.QIo6PTOijMc40xncHb9UYZXdhOI&report_index=0',
             follow_redirects=True
         )
     def verify_valid_user1(self):
         return self.app.get(
-             '/__verify?key=gAAAAABfbwKeehk8AttRbIvNZnKastFn9ZuiN0a5O8F7svmMdWNnumxtWYMvOqJmYJ1a8LGr4agZ6Igr1gDfHWY4TReqXv_QhDr9fEqPM7fKyv4trIy4-Dw%3D',
+            '/__verify?token=InZhbGlkdXNlcjJAbm9tYWlsLmNvbSI.X27Xvw.qtIJcHLdRlG-GtTh-6BQSVMsMKI',
             follow_redirects=True
         )
 ###############

@@ -172,8 +172,6 @@ def login():
         return redirect(url_for('dashboard'))
     form = forms.LoginForm()
     if request.method == 'POST' and form.validate():
-        print(form.email.data)
-        print(form.password.data)
         try:
             user_rec = User.objects(email=form.email.data.lower()).first()
         except Exception as e:
@@ -469,24 +467,25 @@ def __approve():
     if request.method == 'GET' and form.validate():
         token = form.token.data
         report_index = form.report_index.data
-    try:
-        email = enc_msg.confirm_activation_key(token)
-    except:
-        message = 'The confirmation link is invalid or has expired.'
-    user_rec = User.objects(email=email).first()
-    if (user_rec == None or report_index >= len(user_rec.reports)):
-        message = 'The confirmation link is invalid or has expired.'
-    if user_rec.reports[report_index].approved == True:
-       message = 'Report is already approved; Thank you.'
+        try:
+            email = enc_msg.confirm_activation_key(token)
+        except:
+            message = 'The confirmation link is invalid or has expired.'
+        user_rec = User.objects(email=email).first()
+        if (user_rec == None or report_index == None or report_index >= len(user_rec.reports)):
+           message = 'The confirmation link is invalid or has expired.'
+        elif user_rec.reports[report_index].approved == True:
+               message = 'Report is already approved; Thank you.'
+        else:
+            user_rec.reports[report_index].approved = True
+            user_rec.save()
+            message =  'You have approved the Report. Thank you!'
+            if (app.config['SEND_PASS_BY_MAIL'] == True and 
+                        check_if_expired(user_rec.reports[report_index].lab_report_type,user_rec.reports[report_index].lab_date) == False):
+        
+                auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(user_rec.email)) #Need to encrypt
+                tempFileObj = gen_pass.generate_idcard(user_rec,auth_url)
+                generate_email_immunity_pass(user_rec.email, tempFileObj)
     else:
-        user_rec.reports[report_index].approved = True
-        user_rec.save()
-        message =  'You have approved the Report. Thank you!'
-        if (app.config['SEND_PASS_BY_MAIL'] == True and 
-                check_if_expired(user_rec.reports[report_index].lab_report_type,user_rec.reports[report_index].lab_date) == False):
-
-            auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(user_rec.email)) #Need to encrypt
-            tempFileObj = gen_pass.generate_idcard(user_rec,auth_url)
-            generate_email_immunity_pass(user_rec.email, tempFileObj)
-
+        message = 'The confirmation link is invalid or has expired.'
     return render_template('approval_response.html',message=message) 
