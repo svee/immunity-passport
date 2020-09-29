@@ -153,19 +153,21 @@ class BasicTests(unittest.TestCase):
             follow_redirects=True
 
         )
-    def approve_report_valid_user1(self):
+    def approve_report_valid_user1(self,index):
+        url = '/__approve?token=InZhbGlkdXNlcjFAbm9tYWlsLmNvbSI.X3MUzQ.j4jPiKqv0A87DJPYzxf5ABRsEhE&report_index='+str(index)
         return self.app.get(
-            '/__approve?token=InZhbGlkdXNlcjFAbm9tYWlsLmNvbSI.X3MUzQ.j4jPiKqv0A87DJPYzxf5ABRsEhE&report_index=0',
+                url,
             follow_redirects=True
         )
-    def approve_report_valid_user2(self):
+    def approve_report_valid_user2(self,index):
+        url = '/__approve?token=InZhbGlkdXNlcjJAbm9tYWlsLmNvbSI.X3MVRw.QIo6PTOijMc40xncHb9UYZXdhOI&report_index='+str(index)
         return self.app.get(
-            '/__approve?token=InZhbGlkdXNlcjJAbm9tYWlsLmNvbSI.X3MVRw.QIo6PTOijMc40xncHb9UYZXdhOI&report_index=0',
+                url,
             follow_redirects=True
         )
     def verify_valid_user1(self):
         return self.app.get(
-            '/__verify?token=InZhbGlkdXNlcjJAbm9tYWlsLmNvbSI.X27Xvw.qtIJcHLdRlG-GtTh-6BQSVMsMKI',
+            '/__verify?key=gAAAAABfcyM_FrPX4rRXAFIyVtGp6Is-nl_gZ0Po0jj4oQ5I7kR4tBJ2Zgy63UXH0-0Diyk0ZoQ4_xMalleg1DORadA97MWeOnFMp-RsMaWh6-3oa8B2W1c%3D',
             follow_redirects=True
         )
 ###############
@@ -242,12 +244,12 @@ class BasicTests(unittest.TestCase):
         response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
         lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
-        response = self.update_labreport("Name of lab", "my city", "my country", "2020-09-02", "Vaccination", lab_report)
+        response = self.update_labreport("Name of lab", "my city", "IN", "2020-09-02", "Vaccination", lab_report)
         if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
             self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
-            response = self.approve_report_valid_user1()
+            response = self.approve_report_valid_user1(0)
             self.assertIn(b'You have approved the Report. Thank you!',response.data)
-            response = self.approve_report_valid_user1()  #Try again
+            response = self.approve_report_valid_user1(0)  #Try again
             self.assertIn(b'Report is already approved; Thank you',response.data)
             response = self.print_passport()
             self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
@@ -317,10 +319,10 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
         prof_pic = os.path.join(TEST_ASSETS,"profpic2.jpg")
-        response = self.update_user_and_labreport("Name of lab", "my city", "my country", "2020-09-02", "Vaccination", lab_report,"Brandnew User", prof_pic)
+        response = self.update_user_and_labreport("Name of lab", "my city", "IN", "2020-09-02", "Vaccination", lab_report,"Brandnew User", prof_pic)
         if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
             self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
-            response = self.approve_report_valid_user2()
+            response = self.approve_report_valid_user2(0)
             self.assertIn(b'You have approved the Report. Thank you!',response.data)
             response = self.print_passport()
             self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
@@ -345,10 +347,10 @@ class BasicTests(unittest.TestCase):
         response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
         lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
-        response = self.update_labreport("Name of lab", "my city", "my country", "2018-09-02", "Antibody Test", lab_report) #old; this should expire
+        response = self.update_labreport("Name of lab", "my city", "IN", "2018-09-02", "Antibody Test", lab_report) #old; this should expire
         if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
             self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
-            response = self.approve_report_valid_user1()
+            response = self.approve_report_valid_user1(1)
             self.assertIn(b'You have approved the Report. Thank you!',response.data)
             response = self.print_passport()
             self.assertIn (b'Your Report has expired; submit new lab report',response.data)
@@ -361,10 +363,10 @@ class BasicTests(unittest.TestCase):
         response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
         lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
-        response = self.update_labreport("Name of lab", "my city", "my country", "2020-09-02", "Vaccination", lab_report) #old; this should expire
+        response = self.update_labreport("Name of lab", "my city", "IN", "2020-09-02", "Vaccination", lab_report) #old; this should expire
         if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
             self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
-            response = self.approve_report_valid_user1()
+            response = self.approve_report_valid_user1(2)
             self.assertIn(b'You have approved the Report. Thank you!',response.data)
             response = self.print_passport()
             self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
