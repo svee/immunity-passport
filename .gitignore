@@ -10,3 +10,4 @@ tmp
 .=*
 im_pass/tests/assets
 deploy
+dump*

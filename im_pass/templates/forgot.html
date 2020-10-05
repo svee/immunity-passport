@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Login{% endblock %}
+{% block title %}Forgot Password{% endblock %}
 {% block head %}
     {{ super() }}
  
@@ -11,16 +11,13 @@
 {% from "_formhelpers.html" import render_field %}
 <form class="form-signin"  method=post>
   <img class="mb-4" src="static/logo_immunity_passport.png" alt="" width="72" height="72">
-  <h1 class="h3 mb-3 font-weight-normal">Please sign in</h1>
+  <h1 class="h3 mb-3 font-weight-normal">Enter Registered email ID</h1>
   {{ form.hidden_tag() }}
   <dl>
     {{ render_field(form.email) }}
-    {{ render_field(form.password) }}
+    {{ render_field(form.recaptcha) }}
   </dl>
-  <p><input class="btn btn-lg btn-primary btn-block"  name=submit_button type=submit value="Sign in">
-    <ul class="text-center">
-	<p><a href="{{ url_for('forgot') }}">Forgot Password</a></p>
-   </ul>
+  <p><input class="btn btn-lg btn-primary btn-block"  type=submit value="Submit">
 </form>
 </div>
 {% endblock %}

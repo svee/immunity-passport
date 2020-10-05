@@ -52,7 +52,18 @@ class LoginForm(FlaskForm):
     password = PasswordField('', render_kw={"placeholder": "Password"}, 
             validators=[InputRequired(), Length(min=8, max=30, message="Invalid Credentials")])
 
+class ForgotPasswordForm(FlaskForm):
+    email = StringField('', render_kw={"placeholder": "Email address"}, 
+            validators=[InputRequired(), Email(message='Invalid email'), Length(min=6, max=30)])
 
+    recaptcha = RecaptchaField()
+
+class ResetPasswordForm(FlaskForm):
+    password = PasswordField('New Password', [
+        validators.InputRequired(), validators.Length(min=8, max=20, message="Password length minimum 8 maximum 30"),
+        validators.EqualTo('confirm', message='Passwords must match')
+    ])
+    confirm = PasswordField('Repeat Password') #Can be removed later if we have show/hide feature
 
 #Once the registration is done, user is redirected to give details
 #to obtain QR Code that is 
@@ -92,6 +103,10 @@ class UpdateCovidTestForm(FlaskForm):
         FileAllowed(['pdf'], 'PDF Format only!')])
 
 class __VerifyForm(FlaskForm):
+    key = StringField('key', [validators.Length(min=4, max=200)])
+
+# For password reset link.
+class __ResetForm(FlaskForm):
     key = StringField('key', [validators.Length(min=4, max=200)])
 
 class __ActivateForm(FlaskForm):
