@@ -9,5 +9,6 @@ tmp
 .coverage
 .=*
 im_pass/tests/assets
+im_pass/tests/extra
 deploy
 dump*
