@@ -14,7 +14,28 @@ from werkzeug.datastructures import FileStorage
 
 from mongoengine import connect, disconnect
 
-class BasicTests(unittest.TestCase):
+
+exif_files = ["Landscape_0.jpg",
+    "Landscape_1.jpg",
+    "Landscape_2.jpg",
+    "Landscape_3.jpg",
+    "Landscape_4.jpg",
+    "Landscape_5.jpg",
+    "Landscape_6.jpg",
+    "Landscape_7.jpg",
+    "Landscape_8.jpg",
+    "Portrait_0.jpg",
+    "Portrait_1.jpg",
+    "Portrait_2.jpg",
+    "Portrait_3.jpg",
+    "Portrait_4.jpg",
+    "Portrait_5.jpg",
+    "Portrait_6.jpg",
+    "Portrait_7.jpg",
+    "Portrait_8.jpg"]
+
+
+class ImageTests(unittest.TestCase):
  
     ############################
     #### setup and teardown ####
@@ -173,72 +194,85 @@ class BasicTests(unittest.TestCase):
 ###############
 #### tests ####
 ###############
-    def test_001_valid_user_registration(self):
-        response = self.register('validuser1@nomail.com', 'validpassword', 'validpassword')
-        self.assertEqual(response.status_code, 200)
-        if (app.config['EMAIL_ACTIVATION_ENABLED']==True):
-            self.assertIn(b'Check your email for activation link', response.data) 
-            response = self.login("validuser1@nomail.com", "validpassword")
-            self.assertIn(b"Activate your account by confirming email",response.data)
-            response = self.activate_valid_user1()
-            self.assertIn(b'Login - Immunity Passport', response.data)
-            response = self.login("validuser1@nomail.com", "validpassword")
-            self.assertEqual(response.status_code, 200)
-
-    def test_003_valid_login(self):
-        response = self.login("validuser1@nomail.com", "validpassword")
-        self.assertEqual(response.status_code, 200)
-
-    def test_004_valid_logout(self):
-        response = self.logout()
-        self.assertEqual(response.status_code, 200)
-
-    def test_005_valid_gets(self):
-        response = self.login("validuser1@nomail.com", "validpassword")
-        self.assertEqual(response.status_code, 200)
-        response =  self.app.get(
-            '/updateprofile',
-            follow_redirects=True
-        )
-        self.assertEqual(response.status_code, 200)
-        response =  self.app.get(
-            '/dashboard',
-            follow_redirects=True
-        )
-        self.assertEqual(response.status_code, 200)
-        response =  self.app.get(
-            '/updateprofile',
-            follow_redirects=True
-        )
-        self.assertEqual(response.status_code, 200)
-        response =  self.app.get(
-            '/addprofile',
-            follow_redirects=True
-        )
-        self.assertEqual(response.status_code, 200)
-        response =  self.app.get(
-            '/update',
-            follow_redirects=True
-        )
-        self.assertEqual(response.status_code, 200)
-        response =  self.app.get(
-            '/getpassport',
-            follow_redirects=True
-        )
-        self.assertEqual(response.status_code, 200)
-        response =  self.app.get(
-            '/',
-            follow_redirects=True
-        )
-        self.assertEqual(response.status_code, 200)
-
-
-
     def test_000_main_page(self):
         response = self.app.get('/', follow_redirects=True)
         self.assertEqual(response.status_code, 200)
- 
- 
+
+    def test_001_user_registration(self):
+        response = self.register('validuser3@nomail.com', 'validpassword', 'validpassword')
+        self.assertEqual(response.status_code, 200)
+        if (app.config['EMAIL_ACTIVATION_ENABLED']==True):
+            self.assertIn(b'Check your email for activation link', response.data) 
+            response = self.login("validuser3@nomail.com", "validpassword")
+            self.assertIn(b"Activate your account by confirming email",response.data)
+            response = self.activate_valid_user1()
+            self.assertIn(b'Login - Immunity Passport', response.data)
+            response = self.login("validuser3@nomail.com", "validpassword")
+            self.assertEqual(response.status_code, 200)
+
+    def test_002_add_profile(self):  # Each test is independent. I have to go through login again.
+        response = self.login("validuser3@nomail.com", "validpassword")
+        self.assertEqual(response.status_code, 200)
+        prof_pic = os.path.join(TEST_ASSETS,"profpic1.jpg")
+        response = self.add_profile("Jonhy Chang",prof_pic)
+        self.assertIn(b'Dashboard', response.data)
+        response = self.logout()
+        self.assertEqual(response.status_code, 200)
+
+
+    def test_003_udate_profile(self):  # Each test is independent. I have to go through login again.
+        response = self.login("validuser3@nomail.com", "validpassword")
+        self.assertEqual(response.status_code, 200)
+        prof_pic = os.path.join(TEST_ASSETS,"profpic2.jpg")
+        response = self.add_profile("Klara Chang",prof_pic)
+        self.assertIn(b'Dashboard', response.data)
+        response = self.logout()
+        self.assertEqual(response.status_code, 200)
+
+    def test_004_udate_profile(self):  # Each test is independent. I have to go through login again.
+        response = self.login("validuser3@nomail.com", "validpassword")
+        self.assertEqual(response.status_code, 200)
+        prof_pic = os.path.join(TEST_ASSETS,"profpic2.jpg")
+        response = self.add_profile("Klara Chang",prof_pic)
+        self.assertIn(b'Dashboard', response.data)
+        response = self.logout()
+        self.assertEqual(response.status_code, 200)
+
+    def test_005_transparent_image(self):  #there were errors handling it in image optimization
+        response = self.login("validuser3@nomail.com", "validpassword")
+        self.assertEqual(response.status_code, 200)
+        prof_pic = os.path.join(TEST_ASSETS,"rgba_image.png")
+        response = self.add_profile("Klara Chang",prof_pic)
+        self.assertIn(b'Dashboard', response.data)
+        response = self.logout()
+        self.assertEqual(response.status_code, 200)
+
+    def test_006_png(self):  #there were errors handling it in image optimization
+        response = self.login("validuser3@nomail.com", "validpassword")
+        self.assertEqual(response.status_code, 200)
+        prof_pic = os.path.join(TEST_ASSETS,"rgba_image.jpg")
+        self.assertIn(b'Dashboard', response.data)
+        response = self.logout()
+        self.assertEqual(response.status_code, 200)
+
+    def test_007_large_pic(self):  #there were errors handling it in image optimization
+        response = self.login("validuser3@nomail.com", "validpassword")
+        self.assertEqual(response.status_code, 200)
+        prof_pic = os.path.join(TEST_ASSETS,"large_test_photo.jpg")  #In test environment CONTENT_LENGTH is not relavant; so this will also return success
+        self.assertEqual(response.status_code, 200)
+        response = self.logout()
+        self.assertEqual(response.status_code, 200)
+
+    def test_008_exif_files(self):  #We send all different files with exif orientation data
+        response = self.login("validuser3@nomail.com", "validpassword")
+        self.assertEqual(response.status_code, 200)
+        EXIF_PATH = TEST_ASSETS + "/extra/exif-orientation-examples"
+        for filename in exif_files:
+            prof_pic = os.path.join(EXIF_PATH,filename)
+            self.assertIn(b'Dashboard', response.data)
+        response = self.logout()
+        self.assertEqual(response.status_code, 200)
+
 if __name__ == "__main__":
     unittest.main()
 
