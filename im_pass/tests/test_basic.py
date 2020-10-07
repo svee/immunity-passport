@@ -54,7 +54,7 @@ class BasicTests(unittest.TestCase):
     def login(self, email, password):
         return self.app.post(
             '/login',
-            data=dict(email=email, password=password),
+            data=dict(email=email, password=password, submit_button='Submit'),
             follow_redirects=True
         )
      
@@ -177,7 +177,8 @@ class BasicTests(unittest.TestCase):
         response = self.register('validuser1@nomail.com', 'validpassword', 'validpassword')
         self.assertEqual(response.status_code, 200)
         if (app.config['EMAIL_ACTIVATION_ENABLED']==True):
-            self.assertIn(b'Check your email for activation link', response.data) 
+            #self.assertIn(b'Check your email for activation link', response.data) 
+            self.assertIn(b'Please sign in', response.data) 
             response = self.login("validuser1@nomail.com", "validpassword")
             self.assertIn(b"Activate your account by confirming email",response.data)
             response = self.activate_valid_user1()
@@ -244,7 +245,7 @@ class BasicTests(unittest.TestCase):
         response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
         lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
-        response = self.update_labreport("Name of lab", "my city", "IN", "2020-09-02", "Vaccination", lab_report)
+        response = self.update_labreport("Name of lab", "my city", "IND", "2020-09-02", "Vaccination", lab_report)
         if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
             self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
             response = self.approve_report_valid_user1(0)
@@ -254,6 +255,8 @@ class BasicTests(unittest.TestCase):
             response = self.print_passport()
             self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
         else:
+            self.assertIn(b"Report Updated. Click on Download to get the Pass",response.data)
+            response = self.print_passport()
             self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
     
     def test_011_goto_dashboard_vailid(self):
@@ -319,7 +322,7 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
         prof_pic = os.path.join(TEST_ASSETS,"profpic2.jpg")
-        response = self.update_user_and_labreport("Name of lab", "my city", "IN", "2020-09-02", "Vaccination", lab_report,"Brandnew User", prof_pic)
+        response = self.update_user_and_labreport("Name of lab", "my city", "IND", "2020-09-02", "Vaccination", lab_report,"Brandnew User", prof_pic)
         if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
             self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
             response = self.approve_report_valid_user2(0)
@@ -327,6 +330,8 @@ class BasicTests(unittest.TestCase):
             response = self.print_passport()
             self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
         else:
+            self.assertIn(b"Report Updated. Click on Download to get the Pass",response.data)
+            response = self.print_passport()
             self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
 
     def test_016_invalid_password_login(self):
@@ -347,7 +352,7 @@ class BasicTests(unittest.TestCase):
         response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
         lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
-        response = self.update_labreport("Name of lab", "my city", "IN", "2018-09-02", "Antibody Test", lab_report) #old; this should expire
+        response = self.update_labreport("Name of lab", "my city", "IND", "2018-09-02", "Antibody Test", lab_report) #old; this should expire
         if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
             self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
             response = self.approve_report_valid_user1(1)
@@ -355,7 +360,9 @@ class BasicTests(unittest.TestCase):
             response = self.print_passport()
             self.assertIn (b'Your Report has expired; submit new lab report',response.data)
         else:
-            self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
+            self.assertIn(b"Report Updated. Click on Download to get the Pass",response.data)
+            response = self.print_passport()
+            self.assertIn (b'Your Report has expired; submit new lab report',response.data)
         response = self.verify_valid_user1()
         self.assertIn(b'FAILURE', response.data)
 
@@ -363,7 +370,7 @@ class BasicTests(unittest.TestCase):
         response = self.login("validuser1@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
         lab_report = os.path.join(TEST_ASSETS,"report1.pdf")
-        response = self.update_labreport("Name of lab", "my city", "IN", "2020-09-02", "Vaccination", lab_report) #old; this should expire
+        response = self.update_labreport("Name of lab", "my city", "IND", "2020-09-02", "Vaccination", lab_report) #old; this should expire
         if(app.config['LAB_REPORT_NEEDS_APPROVAL'] == True):
             self.assertIn(b'Report is sent for approval. Download once it is done',response.data)
             response = self.approve_report_valid_user1(2)
@@ -371,6 +378,8 @@ class BasicTests(unittest.TestCase):
             response = self.print_passport()
             self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
         else:
+            self.assertIn(b"Report Updated. Click on Download to get the Pass",response.data)
+            response = self.print_passport()
             self.assertEqual(response.headers['Content-Disposition'] , 'attachment; filename=immunity_passport.png')
         response = self.verify_valid_user1()
         self.assertIn(b'SUCCESS', response.data)

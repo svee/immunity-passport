@@ -8,10 +8,10 @@ from flask import render_template,redirect, url_for, request, flash,  send_file
 from im_pass import app  #From this package. app is created in __init__
 from im_pass import forms #Notice forms.SignupForm, etc...  way to access object in other file. 
 from im_pass import settings 
-from im_pass import enc_msg
 from im_pass import gen_pass 
-
-
+from im_pass import enc_msg
+from im_pass import utils 
+from im_pass import email_util
 
 from flask_mongoengine import MongoEngine, Document
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -20,8 +20,6 @@ from wtforms import StringField, PasswordField, FileField
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
-
-from datetime import datetime, timedelta
 
 from flask import jsonify
 import base64
@@ -49,7 +47,6 @@ class User(UserMixin, db.Document):
     password = db.StringField()
     confirmed = db.BooleanField(default=False)   #Used for email conformation
     name = db.StringField(max_length=30)
-    #picture=db.ImageField(size=(160,160,True))   #Limitation Mongoengine does not maintain aspect ratio. So need to use PIL
     picture=db.ImageField() 
     reports = ListField(EmbeddedDocumentField(Report))
 
@@ -73,82 +70,6 @@ def home():
         return redirect(url_for('dashboard'))
     return render_template('home.html')
 
-
-from im_pass import email
-
-# create url for password reset link and email to the registered user.
-def generate_email_password_reset(email_id):
-    token = enc_msg.gen_secret_key(email_id)
-    reset_url = url_for('__reset', token=token, _external=True)
-    html = render_template('password_reset_request.html', reset_url=reset_url)
-    subject = "Password reset request - Immunity Passport"
-    try:
-       email.send_email(email_id, subject, html)  
-    except Exception as e:
-        flash("Error connecting to email server; try again later")
-    #flash('Check your email for password reset link')
-
-
-# create url for activating account and send email once signed-up.
-def generate_email_confirmation(email_id):
-    #Form email activation link and send
-    token = enc_msg.gen_secret_key(email_id)
-    confirm_url = url_for('__activate', token=token, _external=True)
-    html = render_template('email_activation.html', confirm_url=confirm_url)
-    subject = "Please confirm your email"
-    try:
-       email.send_email(email_id, subject, html) 
-    except Exception as e:
-        flash("Error connecting to email server; try again later")
-    flash('Check your email for activation link')
-
-def generate_email_report_approval(email_id, fattach, name, lab_name, lab_city, lab_country, lab_date, lab_report_type,report_index):
-    token = enc_msg.gen_secret_key(email_id)
-    confirm_url = url_for('__approve', token=token, report_index=report_index,_external=True)
-    html = render_template('approval_request.html', confirm_url=confirm_url,
-                            name=name, lab_name=lab_name, lab_city=lab_city, lab_country=lab_country, 
-                            lab_date=lab_date, lab_report_type=lab_report_type)
-    subject = "Please review attached report and click on the link to approve"
-    try:
-       email.send_email(app.config['APPROVER_EMAIL'], subject, html,fattach, "report.pdf","pdf")  #email integration is not done.
-    except Exception as e:
-        flash("Error connecting to email server; try again later")
-        return
-    flash('Report is sent for approval. Download once it is done')
-
-# Once the report is approved, this is called to send immunity pass through e-mail
-def generate_email_immunity_pass(email_id, fattach):
-    html = render_template('passportby_mail.html')
-    subject = "Your immunity pass is approved"
-    try:
-        email.send_email(email_id, subject, html,fattach,"immunity_passport.png", "png") 
-    except Exception as e:
-        return   #Silent here as user can later download always.
-
-
-def is_date_later_than_today(input_date):
-    today = datetime.today().date()
-    if (input_date > today):
-        return True
-    return False
-
-# Checks if the lab report in hand has expired
-def check_if_expired(rep_type, rep_date):
-    today = datetime.today().date()
-    expired=False
-    if rep_type == "Covid- Real Time PCR":
-        if (rep_date + timedelta(days=app.config['REPORT_VALIDITY']['CovidTest']) < today):
-                expired = True;
-    elif rep_type == "Antibody Test":
-        if (rep_date + timedelta(days=app.config['REPORT_VALIDITY']['AntibodyTest']) < today):
-                expired = True;
-    elif rep_type == "Vaccination":
-        if (rep_date + timedelta(days=app.config['REPORT_VALIDITY']['Vaccination']) < today):
-                expired = True;
-    else:
-        expired = True # Error we don't understand this type of test.
-    return expired
-
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if current_user.is_authenticated == True:
@@ -167,7 +88,8 @@ def signup():
             newuser = User(email=form.email.data.lower(),password=hashpass).save()
 
             if(app.config['EMAIL_ACTIVATION_ENABLED'] == True):
-                generate_email_confirmation(form.email.data.lower())
+                flash('Check your email for activation link')
+                email_util.generate_confirmation(form.email.data.lower())
                 return redirect(url_for('login'))
             else:
                 newuser.confirmed = True  # temporary till email activation is enabled.
@@ -186,8 +108,8 @@ def login():
         return redirect(url_for('dashboard'))
 
     #Handle use case of forgotten password.
-    if request.method == 'POST' and request.form['submit_button'] == 'Forgot Password':
-        return redirect(url_for('forgot'))
+    #if request.method == 'POST' and request.form['submit_button'] == 'Forgot Password':
+    #    return redirect(url_for('forgot'))
 
     form = forms.LoginForm()
     if request.method == 'POST' and form.validate():
@@ -201,7 +123,7 @@ def login():
             if check_password_hash(user_rec['password'], form.password.data):
                 if (user_rec.confirmed == False):
                     flash("Activate your account by confirming email") 
-                    generate_email_confirmation(form.email.data.lower()) #Resending confirmation link again here. can find better way to do this ?
+                    email_util.generate_confirmation(form.email.data.lower()) #Resending confirmation link again here. can find better way to do this ?
                     return redirect(url_for('home'))
                 else:
                     login_user(user_rec)
@@ -223,7 +145,7 @@ def forgot():
 
         if user_rec:
             flash("Reset-link sent to your registered email") 
-            generate_email_password_reset(form.email.data.lower()) 
+            email_util.generate_password_reset(form.email.data.lower()) 
             return redirect(url_for('home'))
         flash('User not found; Try again')
         return redirect(url_for('forgot'))
@@ -246,7 +168,7 @@ def getpassport():
         return redirect(url_for('dashboard'))
     form = forms.GetPassportForm()
     if request.method == 'POST' and form.validate() and  request.form['submit_button'] == 'Submit':
-        if (is_date_later_than_today(form.lab_date.data)):
+        if (utils.is_date_later_than_today(form.lab_date.data)):
             flash("Report Date cannot be later than today")
             return render_template('getpassport.html', title = 'Immunity Passport Request', form=form)
 
@@ -277,7 +199,7 @@ def getpassport():
             tempFileObj = gen_pass.generate_temp_report(current_user)
             rep = current_user.reports[-1]
             report_index = len(current_user.reports)-1
-            generate_email_report_approval(current_user.email, tempFileObj, current_user.name, 
+            email_util.generate_report_approval(current_user.email, tempFileObj, current_user.name, 
                     rep.lab_name, rep.lab_city, rep.lab_country, rep.lab_date, rep.lab_report_type,report_index)
             return redirect(url_for('dashboard'))
         else:
@@ -299,7 +221,7 @@ def update():
         return redirect(url_for('dashboard'))
     form = forms.UpdateCovidTestForm()
     if request.method == 'POST' and form.validate():
-        if (is_date_later_than_today(form.lab_date.data)):
+        if (utils.is_date_later_than_today(form.lab_date.data)):
             flash("Report Date cannot be later than today")
             return render_template('update.html', title = 'Immunity Passport Request', form=form)
 
@@ -322,7 +244,7 @@ def update():
             tempFileObj = gen_pass.generate_temp_report(current_user)
             rep = current_user.reports[-1]
             report_index = len(current_user.reports)-1
-            generate_email_report_approval(current_user.email, tempFileObj, current_user.name, 
+            email_util.generate_report_approval(current_user.email, tempFileObj, current_user.name, 
                     rep.lab_name, rep.lab_city, rep.lab_country, rep.lab_date, rep.lab_report_type,report_index)
             return redirect(url_for('dashboard'))
         else:
@@ -446,7 +368,7 @@ def __verify():
         except Exception as e:
             return render_template('verify_response.html',"Server Error"+e.message) 
         if user_rec:
-            if (check_if_expired(user_rec.reports[-1].lab_report_type,user_rec.reports[-1].lab_date) == True):
+            if (utils.check_if_expired(user_rec.reports[-1].lab_report_type,user_rec.reports[-1].lab_date) == True):
                 message = 'FAILURE: User has an expired report'
             else:
                 message =  'SUCCESS: User has a VALID immunity passport!!'
@@ -464,10 +386,11 @@ def __reset(token):
         #form = forms.__ResetForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration needed
         #key = form.key.data
         key = token
-        email_id = enc_msg.confirm_secret_key(key)
+        email_id = enc_msg.confirm_secret_key(key,expiration=3600)  #Link expires in one hour
 
-        print("key = ",key)
-        print("email_id = ",email_id)
+        if (email_id == None):
+            flash("Invalid/Expired link")
+            return render_template("home.html")
         try:
             user_rec = User.objects(email=email_id).first()
             #user_rec = User.objects(email=email_id.decode('utf8')).first()
@@ -485,6 +408,9 @@ def __reset(token):
         if form.validate():
             key = token
             email_id = enc_msg.confirm_secret_key(key)
+            if (email_id == None):
+                flash("Invalid/Expired link")
+                return render_template("home.html")
             try:
                 user_rec = User.objects(email=email_id).first()
             except Exception as e:
@@ -508,7 +434,7 @@ def printpassport():
         flash ('Provide user/test data first using Get New option','success')
     elif (current_user.reports[-1].approved == False):
         flash ('Lab report is waiting for approval. Try again later','success')
-    elif (check_if_expired(current_user.reports[-1].lab_report_type,current_user.reports[-1].lab_date) == True):
+    elif (utils.check_if_expired(current_user.reports[-1].lab_report_type,current_user.reports[-1].lab_date) == True):
         flash ('Your Report has expired; submit new lab report','success')
     else:
         auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(current_user.email)) #Need to encrypt
@@ -559,11 +485,11 @@ def __approve():
             user_rec.save()
             message =  'You have approved the Report. Thank you!'
             if (app.config['SEND_PASS_BY_MAIL'] == True and 
-                        check_if_expired(user_rec.reports[report_index].lab_report_type,user_rec.reports[report_index].lab_date) == False):
+                        utils.check_if_expired(user_rec.reports[report_index].lab_report_type,user_rec.reports[report_index].lab_date) == False):
         
                 auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(user_rec.email)) #Need to encrypt
                 tempFileObj = gen_pass.generate_idcard(user_rec,auth_url)
-                generate_email_immunity_pass(user_rec.email, tempFileObj)
+                email_util.generate_immunity_pass(user_rec.email, tempFileObj)
     else:
         message = 'The confirmation link is invalid or has expired.'
     return render_template('approval_response.html',message=message) 

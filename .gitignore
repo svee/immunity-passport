@@ -8,7 +8,7 @@ dist
 tmp
 .coverage
 .=*
-im_pass/tests/assets
-im_pass/tests/extra
+exif-orientation-examples
 deploy
 dump*
+build

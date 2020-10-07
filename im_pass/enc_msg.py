@@ -43,5 +43,5 @@ def confirm_secret_key(token, expiration=None):   #Note that email activation li
             max_age=expiration
         )
     except:
-        return False
+        return None
     return email

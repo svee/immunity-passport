@@ -4,8 +4,8 @@
     {{ super() }}
  
     <!-- Custom styles for this template -->
-    <link href="static/css/navbar-top-fixed.css" rel="stylesheet">
-    <link href="static/css/signin.css" rel="stylesheet">
+    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='css/navbar-top-fixed.css') }}">
+    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='css/signin.css') }}">
 
 {% endblock %}
 {% block content %}
@@ -31,10 +31,10 @@
    </nav>
    <div id="content" class="form-signin">
 <form class="form-signin"  method=get >
-  <img class="mb-4" src="static/logo_immunity_passport.png" alt="" width="72" height="72">
+  <img class="mb-4" src="{{ url_for('static', filename='logo_immunity_passport.png') }}" alt="" width="72" height="72">
   <dl>
-	  <p><a href="{{ url_for('login') }}"><input class="btn btn-lg btn-primary btn-block" type=button value="Login">
-		  <p><a href="{{ url_for('signup') }}"><input class="btn btn-lg btn-primary btn-block" type=button value="Signup">
+        <p><a href="{{ url_for('login') }}"><input class="btn btn-lg btn-primary btn-block" type=button value="Login">
+        <p><a href="{{ url_for('signup') }}"><input class="btn btn-lg btn-primary btn-block" type=button value="Signup">
 </form>
  </div>
 

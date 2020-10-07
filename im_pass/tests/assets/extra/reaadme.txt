@@ -1,0 +1,5 @@
+Additional images/files for testing
+
+To test image transformation code.
+
+From Github repo : https://github.com/recurser/exif-orientation-examples
