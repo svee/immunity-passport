@@ -1,6 +1,9 @@
 blinker==1.4
+certifi==2020.6.20
 cffi==1.14.2
+chardet==3.0.4
 click==7.1.2
+coverage==5.2.1
 cryptography==3.1
 dnspython==2.0.0
 email-validator==1.1.1
@@ -15,12 +18,16 @@ itsdangerous==1.1.0
 Jinja2==2.11.2
 MarkupSafe==1.1.1
 mongoengine==0.20.0
+nose2==0.9.2
 Pillow==7.2.0
 pycountry==20.7.3
 pycparser==2.20
 pymongo==3.11.0
 qrcode==6.1
+redis==3.5.3
+rq==1.5.2
 sentinels==1.0.0
 six==1.15.0
+urllib3==1.25.10
 Werkzeug==1.0.1
 WTForms==2.3.3
