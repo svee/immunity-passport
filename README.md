@@ -56,6 +56,16 @@ Source Code:
 Before you can get it working, many parameters like secret key, smtp mail server, recaptcha, mongodb needs to be set. read config.txt file 
 for template of what all needs to be set.
 
+1. setup virtual environment
+$ virtualenv impenv
+$ source impenv/bin/activate
+$ pip install -r requirements.txt
+
+Before starting the application, need to run:
+mongo db server
+redis server (setup instructions here: https://www.twilio.com/blog/asynchronous-tasks-in-python-with-redis-queue) and
+rqworker in virtual environment
+
 Known Limitations:
 
 * unittest - Currently unittest is using the local mongodb database. Need to drop database each time you run unittest. Can migrate to alternate test database later on.
