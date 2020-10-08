@@ -57,6 +57,13 @@ class AllTests(unittest.TestCase):
             data=dict(email=email, password=password, submit_button='Submit'),
             follow_redirects=True
         )
+
+    def forgot(self, email):
+        return self.app.post(
+            '/forgot',
+            data=dict(email=email),
+            follow_redirects=True
+        )
      
     def logout(self):
         return self.app.get(
@@ -168,6 +175,18 @@ class AllTests(unittest.TestCase):
     def verify_valid_user1(self):
         return self.app.get(
             '/__verify?key=gAAAAABfcyM_FrPX4rRXAFIyVtGp6Is-nl_gZ0Po0jj4oQ5I7kR4tBJ2Zgy63UXH0-0Diyk0ZoQ4_xMalleg1DORadA97MWeOnFMp-RsMaWh6-3oa8B2W1c%3D',
+            follow_redirects=True
+        )
+    def reset_password_user1(self):
+        return self.app.get(
+        '/__reset/InZhbGlkdXNlcjFAbm9tYWlsLmNvbSI.X36Zbg.msf09y7ftKUHUDcWXwRyLOEyA20',
+            follow_redirects=True
+        )
+
+    def set_new_password_user1(self,password,confirm):
+        return self.app.post(
+        '/__reset/InZhbGlkdXNlcjFAbm9tYWlsLmNvbSI.X36Zbg.msf09y7ftKUHUDcWXwRyLOEyA20',
+            data=dict(password=password, confirm=confirm),
             follow_redirects=True
         )
 ###############
@@ -384,6 +403,16 @@ class AllTests(unittest.TestCase):
         response = self.verify_valid_user1()
         self.assertIn(b'SUCCESS', response.data)
 
+    def test_021_reset_password(self):
+        response = self.forgot("validuser1@nomail.com")
+        self.assertIn(b"Reset-link sent to your registered email",response.data) 
+        response = self.reset_password_user1()
+        self.assertIn(b"Reset Password - Immunity Passport",response.data)
+        response = self.set_new_password_user1("ABCDEFGH","ABCDEFGH")
+        self.assertIn(b"Login - Immunity Passport",response.data)
+        self.assertIn(b"Password reset successfully",response.data)
+        response = self.login("validuser1@nomail.com", "ABCDEFGH")
+        self.assertIn(b"Dashboard - Immunity Passport",response.data)
 
     def test_000_main_page(self):
         response = self.app.get('/', follow_redirects=True)

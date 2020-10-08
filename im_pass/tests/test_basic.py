@@ -178,19 +178,19 @@ class BasicTests(unittest.TestCase):
         response = self.app.get('/', follow_redirects=True)
         self.assertEqual(response.status_code, 200)
     def test_001_valid_user_registration(self):
-        response = self.register('validuser1@nomail.com', 'validpassword', 'validpassword')
+        response = self.register('validuser0@nomail.com', 'validpassword', 'validpassword')
         self.assertEqual(response.status_code, 200)
         if (app.config['EMAIL_ACTIVATION_ENABLED']==True):
             self.assertIn(b'Check your email for activation link', response.data) 
-            response = self.login("validuser1@nomail.com", "validpassword")
+            response = self.login("validuser0@nomail.com", "validpassword")
             self.assertIn(b"Activate your account by confirming email",response.data)
             response = self.activate_valid_user1()
             self.assertIn(b'Login - Immunity Passport', response.data)
-            response = self.login("validuser1@nomail.com", "validpassword")
+            response = self.login("validuser0@nomail.com", "validpassword")
             self.assertEqual(response.status_code, 200)
 
     def test_002_valid_login(self):
-        response = self.login("validuser1@nomail.com", "validpassword")
+        response = self.login("validuser0@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
 
     def test_003_valid_logout(self):
@@ -198,7 +198,7 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_004_valid_gets(self):
-        response = self.login("validuser1@nomail.com", "validpassword")
+        response = self.login("validuser0@nomail.com", "validpassword")
         self.assertEqual(response.status_code, 200)
         response =  self.app.get(
             '/updateprofile',

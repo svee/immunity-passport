@@ -5,31 +5,22 @@
 
 from flask import render_template,redirect, url_for, request, flash,  send_file
 
-from im_pass import app  #From this package. app is created in __init__
+from im_pass import app, db, login_manager  #From this package. app is created in __init__
+
 from im_pass import forms #Notice forms.SignupForm, etc...  way to access object in other file. 
-from im_pass import settings 
 from im_pass import gen_pass 
 from im_pass import enc_msg
 from im_pass import utils 
 from im_pass import email_util
 
-from flask_mongoengine import MongoEngine, Document
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from mongoengine import *
+
 from wtforms import StringField, PasswordField, FileField
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
-
-from flask import jsonify
 import base64
-
-
-db = MongoEngine(app)
-
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = "login"
 
 
 class Report(db.EmbeddedDocument):
@@ -50,7 +41,11 @@ class User(UserMixin, db.Document):
     picture=db.ImageField() 
     reports = ListField(EmbeddedDocumentField(Report))
 
-
+# When in production, if uploaded file is larger then MAX_CONTENT_LENGTH, 
+# 413 error is generated. In some cases, server might just reset the connection
+# In development environment with flask, the server
+# always resets the connection so we never get here to be able to display
+# nice message.
 @app.errorhandler(413)
 def error413(e):
     flash("Size of Picture/Report recommended 1MB; cannot exceed 5MB")
@@ -70,6 +65,7 @@ def home():
         return redirect(url_for('dashboard'))
     return render_template('home.html')
 
+# Store username and password, send email activation if enabled.
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if current_user.is_authenticated == True:
@@ -92,7 +88,7 @@ def signup():
                 email_util.generate_confirmation(form.email.data.lower())
                 return redirect(url_for('login'))
             else:
-                newuser.confirmed = True  # temporary till email activation is enabled.
+                newuser.confirmed = True
                 newuser.save()
                 flash('Registered Successfully; Log in with email/password')
         else:
@@ -101,15 +97,11 @@ def signup():
     else:
         return render_template('signup.html', title = 'Sign-up with email ID', form=form)
 
-
+# Using flask login. 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated == True:
         return redirect(url_for('dashboard'))
-
-    #Handle use case of forgotten password.
-    #if request.method == 'POST' and request.form['submit_button'] == 'Forgot Password':
-    #    return redirect(url_for('forgot'))
 
     form = forms.LoginForm()
     if request.method == 'POST' and form.validate():
@@ -133,6 +125,7 @@ def login():
     else:
         return render_template('login.html', title='Sign In', form=form)
 
+# User has clicked on forgot password link in the Login form.
 @app.route('/forgot', methods=['GET', 'POST'])
 def forgot():
     form = forms.ForgotPasswordForm()
@@ -140,7 +133,7 @@ def forgot():
         try:
             user_rec = User.objects(email=form.email.data.lower()).first()
         except Exception as e:
-            flash(e)   #Likely that MongoDB connection has failed.
+            flash("Server Error",e)   #Likely that MongoDB connection has failed.
             return render_template('home.html')
 
         if user_rec:
@@ -155,17 +148,22 @@ def forgot():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+
+   # We make Download link active only when profile and some report exists.
+   # However note that it does not guarantee that report is approved. 
    if (current_user.name == None or current_user.picture == None or len(current_user.reports) == 0):
       return render_template('dashboard.html', name=current_user.email, pass_ready=False)
    else:
       return render_template('dashboard.html', name=current_user.email, pass_ready=True)
 
-
+# Idea was to have single click Pass generation. So profile + lab report data is 
+# taken in single form if it is the first time around.
 @app.route('/getpassport', methods=['GET', 'POST'])
 @login_required
 def getpassport():
-    if request.method == 'POST' and request.form['submit_button'] == 'Home':
+    if request.method == 'POST' and request.form['submit_button'] == 'Home':  #Case of user wanting to go back 'Home'
         return redirect(url_for('dashboard'))
+
     form = forms.GetPassportForm()
     if request.method == 'POST' and form.validate() and  request.form['submit_button'] == 'Submit':
         if (utils.is_date_later_than_today(form.lab_date.data)):
@@ -214,6 +212,8 @@ def getpassport():
     else:
         return render_template('getpassport.html', title = 'Immunity Passport Request', form=form)
 
+# New test is done, so lab report update happens in this route. 
+# If configured report is sent for approval after saving.
 @app.route('/update', methods=['GET', 'POST'])
 @login_required
 def update():
@@ -257,15 +257,7 @@ def update():
     else:
         return render_template('update.html', title = 'Immunity Passport Request', form=form)
 
-
-def profilepic():
-    img = ""
-    fs =  current_user.picture.get()
-    if (fs != None):
-        img = base64.b64encode(fs.read())
-        img = img.decode("utf8")
-    return img
-
+# Adding profile for the first time. Both the fields are mandatory.
 @app.route('/addprofile', methods=['GET', 'POST'])
 @login_required
 def addprofile():
@@ -299,6 +291,8 @@ def addprofile():
     else:
         return redirect(url_for('updateprofile'))
 
+# If profile is already existing, we let User change either picture or name without
+# making fields mandatory. Current profile data is displayed.
 @app.route('/updateprofile', methods=['GET', 'POST'])
 @login_required
 def updateprofile():
@@ -349,24 +343,102 @@ def updateprofile():
         return render_template('updateprofile.html', title = 'Edit Profile Data', 
                                profile_pic=img, email=current_user.email, name=current_user.name,form=form)
 
+# Route to download the immunity passport. If user or lab records are missing or if lab report is not approved yet,
+# just display warning and go back to dashboard.
+@app.route('/printpassport', methods=['GET'])
+@login_required
+def printpassport():
+    if (current_user.name == None or current_user.picture == None or len(current_user.reports) == 0):
+        flash ('Provide user/test data first using Get New option','success')
+    elif (current_user.reports[-1].approved == False):
+        flash ('Lab report is waiting for approval. Try again later','success')
+    elif (utils.check_if_expired(current_user.reports[-1].lab_report_type,current_user.reports[-1].lab_date) == True):
+        flash ('Your Report has expired; submit new lab report','success')
+    else:
+        auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(current_user.email)) #Need to encrypt
+        tempFileObj = gen_pass.generate_idcard(current_user,auth_url)
+        response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
+        return response
+    return render_template('dashboard.html',pass_ready=True)
+
 @app.route("/logout")
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('home'))
 
+# User has clicked the email confirmation link. Just mark as confirmed.
+# Currently confirmation link does not expire.
+@app.route('/__activate')
+def __activate():
+    form = forms.__ActivateForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration need
+    if request.method == 'GET' and form.validate():
+        token = form.token.data
+    try:
+        email = enc_msg.confirm_secret_key(token)
+    except:
+        flash('The confirmation link is invalid or has expired.', 'danger')
+    if(email):
+        user_rec = User.objects(email=email).first()
+        if user_rec.confirmed:
+            flash('Account confirmed. Please login.', 'success')
+        else:
+            user_rec.confirmed = True
+            user_rec.save()
+            flash('You have confirmed your account. Thanks!', 'success')
+            return redirect(url_for('login'))
+    return render_template('home.html')  #invalid link, expired token... we just return to home page.
+
+# If the workflow involves manual approval of lab report, mail is sent to pre-configured approvar's ID.
+# When person approving clicks the link, this route is invoked.
+# Since there can be multiple report submits before report is approved, we track the report index.
+# Corresponding report is marked as approved and if enabled, Pass is sent to user through e-mail.
+@app.route('/__approve')
+def __approve():
+    form = forms.__ApproveForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration need
+    if request.method == 'GET' and form.validate():
+        token = form.token.data
+        report_index = form.report_index.data
+        try:
+            email = enc_msg.confirm_secret_key(token)
+        except:
+            message = 'The confirmation link is invalid or has expired.'
+        if(email):
+            user_rec = User.objects(email=email).first()
+            if (user_rec == None or report_index == None or report_index >= len(user_rec.reports)):
+               message = 'The confirmation link is invalid or has expired.'
+            elif user_rec.reports[report_index].approved == True:
+                   message = 'Report is already approved; Thank you.'
+            else:
+                user_rec.reports[report_index].approved = True
+                user_rec.save()
+                message =  'You have approved the Report. Thank you!'
+                if (app.config['SEND_PASS_BY_MAIL'] == True and 
+                            utils.check_if_expired(user_rec.reports[report_index].lab_report_type,user_rec.reports[report_index].lab_date) == False):
+            
+                    auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(user_rec.email)) #Need to encrypt
+                    tempFileObj = gen_pass.generate_idcard(user_rec,auth_url)
+                    email_util.generate_immunity_pass(user_rec.email, tempFileObj)
+    else:
+        message = 'The confirmation link is invalid or has expired.'
+    return render_template('approval_response.html',message=message) 
+
+# When an App (external) reads QR code on the pass and opens the associated link, this route is invoked.
+# Validate the key, verify that the report has not expired yet. Just return Success or Failure.
 @app.route("/__verify")
 def __verify():
     form = forms.__VerifyForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration need
     if request.method == 'GET' and form.validate():
         key = form.key.data
-        emailid = enc_msg.decrypt_msg(key)
+        email = enc_msg.decrypt_msg(key)
+        if (email == None):
+            return render_template('verify_response.html',message='FAILURE:Invalid/Corrupt QR Data') 
 
-        #return jsonify(receivedkey=key, email=emailid.decode('utf8'))  This was for testing only.
         try:
-            user_rec = User.objects(email=emailid.decode('utf8')).first()
+            user_rec = User.objects(email=email.decode('utf8')).first()  #Side note; when data is passed in get, need to decode from utf8 unlike post ?
         except Exception as e:
-            return render_template('verify_response.html',"Server Error"+e.message) 
+            return render_template('verify_response.html',message="FAILURE: Server Error") 
+
         if user_rec:
             if (utils.check_if_expired(user_rec.reports[-1].lab_report_type,user_rec.reports[-1].lab_date) == True):
                 message = 'FAILURE: User has an expired report'
@@ -382,18 +454,14 @@ def __verify():
 @app.route("/__reset/<token>", methods = ["GET", "POST"])
 def __reset(token):
     if request.method == 'GET':
-#    if request.method == 'GET' and form.validate():
-        #form = forms.__ResetForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration needed
-        #key = form.key.data
         key = token
-        email_id = enc_msg.confirm_secret_key(key,expiration=3600)  #Link expires in one hour
+        email_id = enc_msg.confirm_secret_key(key,expiration=app.config['RESET_LINK_LIFE'])
 
         if (email_id == None):
             flash("Invalid/Expired link")
             return render_template("home.html")
         try:
             user_rec = User.objects(email=email_id).first()
-            #user_rec = User.objects(email=email_id.decode('utf8')).first()
         except Exception as e:
             flash("Server Error"+e.message) 
             return render_template("home.html")
@@ -425,71 +493,3 @@ def __reset(token):
     flash("Error with reset link") 
     return render_template("home.html")
 
-# Route to download the immunity passport. If user or lab records are missing or if lab report is not approved yet,
-# just display warning and go back to dashboard.
-@app.route('/printpassport', methods=['GET'])
-@login_required
-def printpassport():
-    if (current_user.name == None or current_user.picture == None or len(current_user.reports) == 0):
-        flash ('Provide user/test data first using Get New option','success')
-    elif (current_user.reports[-1].approved == False):
-        flash ('Lab report is waiting for approval. Try again later','success')
-    elif (utils.check_if_expired(current_user.reports[-1].lab_report_type,current_user.reports[-1].lab_date) == True):
-        flash ('Your Report has expired; submit new lab report','success')
-    else:
-        auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(current_user.email)) #Need to encrypt
-        tempFileObj = gen_pass.generate_idcard(current_user,auth_url)
-        response = send_file(tempFileObj, as_attachment=True, attachment_filename='immunity_passport.png')
-        return response
-    return render_template('dashboard.html',pass_ready=True)
-
-
-
-@app.route('/__activate')
-def __activate():
-    form = forms.__ActivateForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration need
-    if request.method == 'GET' and form.validate():
-        token = form.token.data
-    try:
-        email = enc_msg.confirm_secret_key(token)
-    except:
-        flash('The confirmation link is invalid or has expired.', 'danger')
-    if(email):
-        user_rec = User.objects(email=email).first()
-        if user_rec.confirmed:
-            flash('Account confirmed. Please login.', 'success')
-        else:
-            user_rec.confirmed = True
-            user_rec.save()
-            flash('You have confirmed your account. Thanks!', 'success')
-            return redirect(url_for('login'))
-    return render_template('home.html')  #invalid link, expired token... we just return to home page.
-
-@app.route('/__approve')
-def __approve():
-    form = forms.__ApproveForm(request.args, meta={'csrf': False})  #Note passing request.args for GET; csrf explicit declaration need
-    if request.method == 'GET' and form.validate():
-        token = form.token.data
-        report_index = form.report_index.data
-        try:
-            email = enc_msg.confirm_secret_key(token)
-        except:
-            message = 'The confirmation link is invalid or has expired.'
-        user_rec = User.objects(email=email).first()
-        if (user_rec == None or report_index == None or report_index >= len(user_rec.reports)):
-           message = 'The confirmation link is invalid or has expired.'
-        elif user_rec.reports[report_index].approved == True:
-               message = 'Report is already approved; Thank you.'
-        else:
-            user_rec.reports[report_index].approved = True
-            user_rec.save()
-            message =  'You have approved the Report. Thank you!'
-            if (app.config['SEND_PASS_BY_MAIL'] == True and 
-                        utils.check_if_expired(user_rec.reports[report_index].lab_report_type,user_rec.reports[report_index].lab_date) == False):
-        
-                auth_url = url_for("__verify",_external=True, key=enc_msg.encrypt_msg(user_rec.email)) #Need to encrypt
-                tempFileObj = gen_pass.generate_idcard(user_rec,auth_url)
-                email_util.generate_immunity_pass(user_rec.email, tempFileObj)
-    else:
-        message = 'The confirmation link is invalid or has expired.'
-    return render_template('approval_response.html',message=message) 
