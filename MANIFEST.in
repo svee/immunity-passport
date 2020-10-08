@@ -1,5 +1,5 @@
 recursive-include im_pass/templates *
 recursive-include im_pass/static *
 recursive-include instance *
-include appstart.sh
+recursive-include scripts *
 include index.wsgi

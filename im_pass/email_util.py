@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# @author: vee
+#
+# both send email as well as worker thread functions.
+
 from flask_mail import Message
 from flask import url_for, render_template, flash
 

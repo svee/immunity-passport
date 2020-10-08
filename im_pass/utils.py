@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# @author: vee
+#
+# Datetime related helper functions
+
 from datetime import datetime, timedelta
 from im_pass import app  #From this package. app is created in __init__
 

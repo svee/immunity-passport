@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# @author: vee
+#
 # Functions to generate ID card and QR Code images
 
 import io
@@ -10,7 +15,6 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 import os.path
 from im_pass import app  #From this package. app is created in __init__
 
-MAX_PROF_PIC_SIZE = (160,160)
 # Creating copy of lab report to be sent for approval
 def generate_temp_report(current_user):
     im_stream = current_user.reports[-1].lab_report.get()
@@ -53,7 +57,7 @@ def optimize_image(pf):
         photo = reorient_image(photo) #Since we loose exif data in .thumbnail PIL call, set to right orientation now itself.
 
         #Maintains the aspect ratio.; May be store small file itself in database once size is standardized
-        photo.thumbnail(MAX_PROF_PIC_SIZE, Image.ANTIALIAS) 
+        photo.thumbnail(app.config['MAX_PROF_PIC_SIZE'], Image.ANTIALIAS) 
         # If given profile pic is encoded as RGBA, saving it to JPEG gives error. 
         # Handle and let it pass through exception OR photo.convert to RGB before calling save..
         tempFileObj = NamedTemporaryFile(mode='w+b',suffix='png')
@@ -89,15 +93,15 @@ def generate_idcard(current_user,auth_url):
     im_stream = current_user.picture.get()
     photo = Image.open(im_stream)
 
-
-    photo.thumbnail(MAX_PROF_PIC_SIZE, Image.ANTIALIAS) #Maintains the aspect ratio.; May be store small file itself in database once size is standardized
+    # Ideally not required as we are now storing pic at reduced size itself.
+    photo.thumbnail(app.config['MAX_PROF_PIC_SIZE'], Image.ANTIALIAS) #Maintains the aspect ratio.; May be store small file itself in database once size is standardized
     photox, photoy = photo.size
 
     qrcode = generate_auth_qrcode(current_user,auth_url)
     qrx, qry = qrcode.size
 
     stamp = Image.open(os.path.join(app.config['APP_STATIC'], 'IssuingAuthority.png'))
-    stamp.thumbnail(MAX_PROF_PIC_SIZE, Image.ANTIALIAS) #Maintains the aspect ratio. 
+    stamp.thumbnail(app.config['MAX_PROF_PIC_SIZE'], Image.ANTIALIAS) #Maintains the aspect ratio. 
     stampx, stampy = stamp.size
 
     card.paste(qrcode, ((cardx//2 - qrx//2), (cardy//2 - qry//2)-50))

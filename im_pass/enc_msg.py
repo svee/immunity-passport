@@ -1,14 +1,20 @@
-from cryptography.fernet import Fernet
-from im_pass import app
-
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# @author: vee
+#
 # We are using three different security schemes
 # 1. werkzeug.security -  generate_password_hash, check_password_hash for password encryption/decryption.
 # 2. Fernet to encode/decode email ID inside QR code URL on ID card.
 # 3. itsdangerous - URLSafeTimedSerializer for encoding email activation, password reset and report approval links
 
+from cryptography.fernet import Fernet
+from im_pass import app
+
+
 # Encryption key is stored away in directory that is not checked-in
 # Key itself is generated once by  key = Fernet.generate_key()
-# Format of the key is MSG_ENCRYPTION_KEY=b'Z23ObuhP8ae3AqIaCGXLwwHkeDdP7abBBh-1nrGSvom='
+# Format of the key is MSG_ENCRYPTION_KEY=b'Z23Obu2P8a53AqIaCfXLwtHkejdP7abBBh-1nrGSvom='
 # To keep the flexibility of adding new key in case of known vulnerability, can migrate to 
 # Multifernet
 

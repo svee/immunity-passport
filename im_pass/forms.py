@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Aug 25 10:56:59 2020
-
-@author: vee
-"""
-
+#
+# 
+# @author: vee
+#
+# File contains definition for various forms.
+  
 from flask_wtf import FlaskForm, RecaptchaField
 from wtforms import Form, BooleanField,DateField, StringField, SelectField, PasswordField, SubmitField, validators, IntegerField
 #Note: Submit is currently handled inside jinja template.
@@ -14,11 +14,7 @@ from wtforms import Form, BooleanField,DateField, StringField, SelectField, Pass
 from wtforms.validators import DataRequired,Email, Length, InputRequired, ValidationError
 from flask_wtf.file import FileField, FileRequired, FileAllowed
 
-from datetime import datetime, timedelta
-
-
 import pycountry
-
 
 class CountrySelectField(SelectField):
     def __init__(self, *args, **kwargs):
@@ -28,6 +24,8 @@ class CountrySelectField(SelectField):
 # Covid- Real Time PCR is used to generate Covid Pass - that is someone is currently clear of Covid
 # Antibody Test is used to generate Immunity Pass for prescribed period 
 # Antibody Test is used to generate Immunity Pass for prescribed period as per vaccination recoddemdations
+# If this is to be changed in future to add more test types, corresponding expiry time needs to be set
+# in app_settings.py
 REPORT_TYPE = [
         ("Covid- Real Time PCR","Covid- Real Time PCR"),
         ("Antibody Test","Antibody Test"),
@@ -66,12 +64,9 @@ class ResetPasswordForm(FlaskForm):
     ])
     confirm = PasswordField('Repeat Password') #Can be removed later if we have show/hide feature
 
-#Once the registration is done, user is redirected to give details
-#to obtain QR Code that is 
 class GetPassportForm(FlaskForm):
 
     username = StringField('Full Name', validators=[InputRequired(), Length(min=4, max=25)])
-
 
     picture = FileField('Passport Photo',
         validators=[FileRequired(),
@@ -92,8 +87,6 @@ class GetPassportForm(FlaskForm):
 class UpdateCovidTestForm(FlaskForm):
     lab_name = StringField('Lab Name', [validators.Length(min=8, max=40)])
     lab_city = StringField('City', [validators.Length(min=4, max=25)])
-    #lab_country = StringField('Country', [validators.Length(min=4, max=25)])
-    #lab_country = CountryField("Country",blank_label='(select country)')
     lab_country = CountrySelectField("Country")
     lab_date = DateField('Date of Covid test', 
             render_kw={"placeholder": "yyyy-mm-dd"}, 
@@ -105,13 +98,15 @@ class UpdateCovidTestForm(FlaskForm):
 class __VerifyForm(FlaskForm):
     key = StringField('key', [validators.Length(min=4, max=200)])
 
-# For password reset link.
-class __ResetForm(FlaskForm):
-    key = StringField('key', [validators.Length(min=4, max=200)])
+# For password reset link. Not required as it is handled as token itself
+#class __ResetForm(FlaskForm):
+#    key = StringField('key', [validators.Length(min=4, max=200)])
 
+# Email activation
 class __ActivateForm(FlaskForm):
     token = StringField('key', [validators.Length(min=4, max=500)])
 
+# Report approval
 class __ApproveForm(FlaskForm):
     token = StringField('key', [validators.Length(min=4, max=500)])
     report_index = IntegerField('index')

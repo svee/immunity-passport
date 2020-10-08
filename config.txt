@@ -1,0 +1,67 @@
+Configuration files are placed inside instance folder and are not checked in.
+There are two files with following parameters that you need to create:
+
+1  ** Config.py
+
+# Secret Keys, mail and Recaptcha configurations.
+# Idea is not to add it to git repo.
+
+SECRET_KEY = "setthistoyoursecretkey"
+
+
+# This is just the output of one time call key = Fernet.generate_key()
+MSG_ENCRYPTION_KEY=b'setthistooutputofFernet.generate.key'
+
+MAIL_SERVER= 'smtp.mailtrap.io'
+MAIL_PORT= 465
+MAIL_DEBUG=False   #Might be causing print to console of mail data
+MAIL_USE_SSL=False
+MAIL_USE_TLS=False
+MAIL_USERNAME='<your username>'
+MAIL_PASSWORD='<your password>'
+MAIL_DEFAULT_SENDER='<your email ID>'
+
+
+# Signup with google for recaptcha and for testing you can set
+# local IP addresses as domain
+RECAPTCHA_USE_SSL= False
+RECAPTCHA_PUBLIC_KEY= '<public key from your account>'
+RECAPTCHA_PRIVATE_KEY='<private key from your account>'
+RECAPTCHA_OPTIONS = {'theme':'white'}
+
+
+2 ** app_settings.py
+
+# Separated application specific settings/constants from config file.
+
+MAX_CONTENT_LENGTH = (5 * 1024 * 1024)  #Limits max upload size (5MB) and returns 413 errors or resets connection.
+
+EMAIL_ACTIVATION_ENABLED=True
+SEND_PASS_BY_MAIL= True
+LAB_REPORT_NEEDS_APPROVAL=True
+
+# Configure this to a valid email of person/organization who will review and approve lab reports.
+APPROVER_EMAIL="<set mail ID of approver>"
+
+# Validity of password reset link.
+# For testing purpose it is set to high value. Typical value can be 3600 say one hour ?
+RESET_LINK_LIFE=100000
+
+
+#Real deployment scenario also will have username/password to MongoDB
+MONGODB_SETTINGS = {
+    'db': 'db_impass',
+    'host': 'localhost',
+    'port': 27017
+}
+
+# Configure how long report s valid for each of the tests (in days)
+REPORT_VALIDITY = {
+        "CovidTest":3,
+        "AntibodyTest":60,
+        "Vaccination":180
+        }
+
+# Pic size is reduced even before storing into the database for performance.
+# desired size can be set upfront.
+MAX_PROF_PIC_SIZE = (160,160)

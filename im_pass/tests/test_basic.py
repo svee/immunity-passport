@@ -11,8 +11,7 @@ TEST_ASSETS = os.path.join(TEST_ROOT, 'assets')
 from werkzeug.datastructures import FileStorage
 # Warning test is using same database as application. So need to be dropped each time.
 # app.config['MONGODB_SETTINGS'] = { 'db': 'db_unittest_im', 'host': 'localhost', 'port': 27017 }
-
-from mongoengine import connect, disconnect
+#from mongoengine import connect, disconnect
 
 # Register; Login and test all endpoints for get.
 class BasicTests(unittest.TestCase):

@@ -21,7 +21,7 @@ Step-5: Apply for New Pass  Once approval is done, pass gets mailed to register
 
 Beyond the validity of the Pass one can get the New Pass again with required test/vaccination report.
             
-Access Demo Here : <to be done>
+Access Demo Here : <tbd>
 
 Application Scenarios:
 
@@ -39,14 +39,32 @@ Technology
 
 - Implemented as Python/Flask/Jinja2  with Mongodb (GridFS for reports and pictures)
 - bootstrap is used for styling UI.
-- Demo is hosted and tested on Apache2 on Ubuntu 20.04 server inside home network with ngrok web tunnel (ISP would not let incoming connections using DDNS).
 - As there are many QR code reader samples for android, client APP is not developed. I am using Trend micro QR code scanner and opening link to ensure application is tested.
 - This is intended to be used as a learning tool or as a reference frame-work (github). User interface needs to be polished, extensive testing is needed to make it ready for deployment.
-- Currently python unittest framework is used to test it followed by flask built in debug mode server then now it is tested on apache2. 
+- Python unittest framework is used to test it followed by flask built in debug mode server. 
+- It is also tested on apache2 on ubuntu 20.04 server hosted on home network and accessed through ngork tunnel.
+- rq and Redis message queue are used to ensure emails are sent in asynchronous mode. 
+- email functionality is tested using mailtrap account.
 
 Motivation:
 
 More than anything it is a learning-python-application project to develop complete system using Flask/Jinja-2.  Wanted to see what it takes to build a simple application from a real life requirement. 
+
+
+Source Code:
+
+Before you can get it working, many parameters like secret key, smtp mail server, recaptcha, mongodb needs to be set. read config.txt file 
+for template of what all needs to be set.
+
+Known Limitations:
+
+* unittest - Currently unittest is using the local mongodb database. Need to drop database each time you run unittest. Can migrate to alternate test database later on.
+* unittest - Mails still go out during unit test.
+* lab report - Date format is restrictive - I was not successful in making Django take other formats
+* css - All of the forms are using login form itself; css needs to be reworked for each form.
+* In the current workflow, user is able to change name/picture after lab report approval n download ID. Might not be acceptable.
+* For convenience - both buttons and navbar are provided. Functionality requires any one.
+
 
 History
 
